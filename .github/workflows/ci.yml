@@ -1,0 +1,177 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Weekly on main too: Package.resolved isn't committed, so a release in
+  # range that breaks the package shows here, not only in the next pull
+  # request.
+  schedule:
+    - cron: "17 5 * * 1"
+
+# Read-only token for every job: nothing here writes to the repository or
+# the pull request, and actions/cache authenticates with its own runtime
+# token.
+permissions:
+  contents: read
+
+# The event is in the group so that a scheduled run and a push to main
+# don't cancel each other.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The build with warnings as errors, the tests under `swift test`, and
+  # SwiftLint over the whole tree. Every job but lowest-swift-syntax
+  # resolves the newest dependencies in range, as a user's Dangerfile
+  # would: Package.resolved isn't committed.
+  macos-tests:
+    name: macos-tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select newest Xcode (Swift 6.2+ required)
+        id: xcode
+        run: |
+          sudo xcode-select -s "$(printf '%s\n' /Applications/Xcode*.app | sort -V | tail -1)"
+          swift --version
+          echo "swift=$(swift --version 2>&1 | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      # The build cache is keyed on the compiler, since modules one Swift
+      # built don't load in another and the runner's Xcode moves, and then
+      # on the versions it holds, so a new release in range is built and
+      # saved once. No cache has the key `newest`, so the restore takes the
+      # newest one that `restore-keys` starts.
+      - name: Restore the build cache
+        id: build-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.swift }}-newest
+          restore-keys: spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.swift }}-
+
+      # Without Package.resolved, SwiftPM keeps the versions a restored
+      # .build holds; an update takes the newest in range instead.
+      - name: Resolve the newest dependencies in range
+        run: |
+          swift package update
+          swift package show-dependencies
+
+      # A step's environment is evaluated when it starts, so this hashes the
+      # Package.resolved the update wrote.
+      - name: Key the build cache on the versions it holds
+        id: build-key
+        env:
+          PREFIX: spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.swift }}
+          VERSIONS: ${{ hashFiles('Package.swift', 'Package.resolved') }}
+        run: echo "key=$PREFIX-$VERSIONS" >> "$GITHUB_OUTPUT"
+
+      # SwiftPM doesn't pass -warnings-as-errors on to dependencies, whose
+      # warnings it suppresses.
+      - name: Build
+        run: swift build --build-tests -Xswiftc -warnings-as-errors
+
+      - name: Save the build cache
+        if: steps.build-key.outputs.key != steps.build-cache.outputs.cache-matched-key
+        uses: actions/cache/save@v6
+        with:
+          path: .build
+          key: ${{ steps.build-key.outputs.key }}
+
+      - name: Run tests
+        run: swift test --skip-build
+
+      # Annotates every violation, and fails the job on any.
+      - name: SwiftLint
+        if: ${{ !cancelled() }}
+        run: |
+          which swiftlint || brew install swiftlint
+          swiftlint version
+          swiftlint lint --quiet --strict --reporter github-actions-logging
+
+  # The tests as Xcode runs them, which lays out build products
+  # differently. No warnings-as-errors here: Xcode builds dependencies
+  # with -suppress-warnings, which conflicts with it; macos-tests holds the
+  # build to zero warnings.
+  xcode-tests:
+    name: xcode-tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select newest Xcode (Swift 6.2+ required)
+        run: |
+          sudo xcode-select -s "$(printf '%s\n' /Applications/Xcode*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Run tests
+        run: >-
+          xcodebuild test -scheme steward-lang-swift -destination platform=macOS
+          -derivedDataPath "$RUNNER_TEMP/xcode" -resultBundlePath "$RUNNER_TEMP/tests.xcresult"
+          -quiet
+
+      # -quiet prints only failures, so the counts are shown here, and a run
+      # that found no tests fails.
+      - name: Count the tests
+        run: |
+          summary=$(xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/tests.xcresult")
+          echo "$summary"
+          passed=$(printf '%s' "$summary" | plutil -extract passedTests raw -o - -)
+          test "$passed" -gt 0
+
+  # The Swift 6.2 floor on Linux. .build stays uncached: the swift:6.2 tag
+  # moves across patch releases, and a key without the compiler would
+  # restore stale modules.
+  linux-tests:
+    name: linux-tests
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve the newest dependencies in range
+        run: |
+          swift package resolve
+          swift package show-dependencies
+
+      - name: Build
+        run: swift build --build-tests -Xswiftc -warnings-as-errors
+
+      - name: Run tests
+        run: swift test --skip-build
+
+  # The lower bound of the swift-syntax range in Package.swift, read from
+  # it, so the two can't drift apart; the other jobs build the newest
+  # release in the range. With Swift 6.2, the oldest compiler supported,
+  # which shipped beside swift-syntax 602.
+  lowest-swift-syntax:
+    name: lowest-swift-syntax
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Pin swift-syntax to the range's lower bound
+        run: |
+          lowest=$(sed -n 's|.*/swift-syntax\.git", "\([0-9.]*\)"\.\.<.*|\1|p' Package.swift)
+          if [ -z "$lowest" ]; then
+            echo "::error file=Package.swift::Couldn't read the lower bound of swift-syntax's range."
+            exit 1
+          fi
+          echo "Lower bound: $lowest"
+          swift package resolve
+          swift package resolve swift-syntax --version "$lowest"
+          swift package show-dependencies | grep -F "swift-syntax.git@$lowest>"
+
+      - name: Build
+        run: swift build --build-tests -Xswiftc -warnings-as-errors
+
+      - name: Run tests
+        run: swift test --skip-build
