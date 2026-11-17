@@ -4,6 +4,11 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Weekly on main too: Package.resolved isn't committed, so a release in
+  # range that breaks the package shows here, not only in the next pull
+  # request.
+  schedule:
+    - cron: "17 5 * * 1"
 
 # Read-only token for every job: nothing here writes to the repository or
 # the pull request, and actions/cache authenticates with its own runtime
@@ -11,8 +16,10 @@ on:
 permissions:
   contents: read
 
+# The event is in the group so that a scheduled run and a push to main
+# don't cancel each other.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -34,12 +41,18 @@ jobs:
           swift --version
           echo "swift=$(swift --version 2>&1 | shasum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
-      # Keyed on the compiler as well as the manifest: modules one Swift
-      # built don't load in another, and the runner's Xcode moves.
-      - uses: actions/cache@v6
+      # The build cache is keyed on the compiler, since modules one Swift
+      # built don't load in another and the runner's Xcode moves, and then
+      # on the versions it holds, so a new release in range is built and
+      # saved once. No cache has the key `newest`, so the restore takes the
+      # newest one that `restore-keys` starts.
+      - name: Restore the build cache
+        id: build-cache
+        uses: actions/cache/restore@v6
         with:
           path: .build
-          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.swift }}-${{ hashFiles('Package.swift') }}
+          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.swift }}-newest
+          restore-keys: spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.swift }}-
 
       # Without Package.resolved, SwiftPM keeps the versions a restored
       # .build holds; an update takes the newest in range instead.
@@ -48,10 +61,26 @@ jobs:
           swift package update
           swift package show-dependencies
 
+      # A step's environment is evaluated when it starts, so this hashes the
+      # Package.resolved the update wrote.
+      - name: Key the build cache on the versions it holds
+        id: build-key
+        env:
+          PREFIX: spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.swift }}
+          VERSIONS: ${{ hashFiles('Package.swift', 'Package.resolved') }}
+        run: echo "key=$PREFIX-$VERSIONS" >> "$GITHUB_OUTPUT"
+
       # SwiftPM doesn't pass -warnings-as-errors on to dependencies, whose
       # warnings it suppresses.
       - name: Build
         run: swift build --build-tests -Xswiftc -warnings-as-errors
+
+      - name: Save the build cache
+        if: steps.build-key.outputs.key != steps.build-cache.outputs.cache-matched-key
+        uses: actions/cache/save@v6
+        with:
+          path: .build
+          key: ${{ steps.build-key.outputs.key }}
 
       - name: Run tests
         run: swift test --skip-build

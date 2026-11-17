@@ -39,8 +39,9 @@ Two, and nothing else without the maintainer's word:
 - **swift-syntax**: `SwiftSyntax` and `SwiftParser`, at a range of
   majors, `"602.0.0"..<"605.0.0"`. SwiftPM picks the newest release in
   the range, and a parser older than the syntax it reads returns error
-  nodes, so the upper bound moves soon after each swift-syntax major
-  (one a year, with Swift's), in a release of this package. The compiler
+  nodes, so the upper bound moves soon after each swift-syntax major (one
+  for each Swift release, about two a year), in a release of this
+  package. The compiler
   doesn't bound the range: every major in it builds with each compiler
   Steward supports. A wide range helps the rare Dangerfile whose own
   graph pins swift-syntax. CI builds against the newest release in the
@@ -75,14 +76,19 @@ unwraps in tests only. Keep the whole tree violation-free; CI fails on any
 violation. When a rule fights a deliberate design decision, disable it in
 config or inline, always with a comment saying why.
 
-CI (`.github/workflows/ci.yml`) runs on every pull request and on `main`:
+CI (`.github/workflows/ci.yml`) runs on every pull request, on each push
+to `main`, and weekly on `main`, so that a new dependency release that
+breaks the package shows between pull requests:
 `macos-tests` (the build with warnings as errors, `swift test`, and
 SwiftLint), `xcode-tests` (`xcodebuild test`), `linux-tests` (the build
 and `swift test` in a `swift:6.2` container) and `lowest-swift-syntax`
 (the same, against the range's lower bound). Locally,
 `docker run -v "$PWD":/src swift:6.2` runs the Linux checks (copy the tree
-out of `/src` first so the two `.build` folders don't mix). Actions are
-pinned by release tag, and the workflow token is read-only.
+out of `/src` first so the two `.build` folders don't mix). GitHub's own
+actions are used at their major version tags, such as
+`actions/checkout@v7`, which move with each release; an action still at
+0.x, where a minor release may break, is pinned to an exact tag or a SHA.
+The workflow token is read-only.
 
 ## Conventions
 
@@ -112,7 +118,8 @@ the source that goes into a finding passes through Steward's
 - Never commit large binaries, and no Git LFS: SwiftPM consumers clone
   this repository.
 - Material from another project (a fixture, say) is committed with its
-  licence next to it and an entry in `THIRD_PARTY_NOTICES.md`.
+  licence next to it and an entry in `THIRD_PARTY_NOTICES.md`, which
+  the first such material creates.
 - Releases are semver git tags, immutable once published, and 0.x for
   now, so a minor release may break API; users depend on one minor
   release with `.upToNextMinor(from:)`. They are cut by hand with

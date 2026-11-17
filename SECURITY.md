@@ -3,8 +3,10 @@
 steward-lang-swift parses Swift source that a pull request's author
 controls: a Dangerfile's rules read the files the pull request creates or
 changes, and what a rule finds can end up in a public comment. It is
-built so that no such file can crash or hang a run, or make a rule read
-anything but the files it asked for.
+meant to read any such file without crashing or hanging the run, and to
+read nothing but the files a rule asks for. Nothing in it reads a pull
+request's files yet; what it guarantees, and how that is tested, will be
+listed here as that code lands.
 
 Steward, which runs the rules and posts what they find, has
 [its own policy](https://github.com/marosoaie/swift-steward/blob/main/SECURITY.md).
