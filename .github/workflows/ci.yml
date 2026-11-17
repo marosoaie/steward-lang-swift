@@ -17,9 +17,9 @@ concurrency:
 
 jobs:
   # The build with warnings as errors, the tests under `swift test`, and
-  # SwiftLint over the whole tree. Every job resolves the newest
-  # dependencies in range, as a user's Dangerfile would: Package.resolved
-  # isn't committed.
+  # SwiftLint over the whole tree. Every job but lowest-swift-syntax
+  # resolves the newest dependencies in range, as a user's Dangerfile
+  # would: Package.resolved isn't committed.
   macos-tests:
     name: macos-tests
     runs-on: macos-26
@@ -40,6 +40,13 @@ jobs:
         with:
           path: .build
           key: spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.swift }}-${{ hashFiles('Package.swift') }}
+
+      # Without Package.resolved, SwiftPM keeps the versions a restored
+      # .build holds; an update takes the newest in range instead.
+      - name: Resolve the newest dependencies in range
+        run: |
+          swift package update
+          swift package show-dependencies
 
       # SwiftPM doesn't pass -warnings-as-errors on to dependencies, whose
       # warnings it suppresses.
@@ -98,6 +105,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+
+      - name: Resolve the newest dependencies in range
+        run: |
+          swift package resolve
+          swift package show-dependencies
 
       - name: Build
         run: swift build --build-tests -Xswiftc -warnings-as-errors
