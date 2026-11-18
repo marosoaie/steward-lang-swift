@@ -57,7 +57,8 @@ public struct SwiftFile: Sendable {
     /// calling thread waits for it.
     ///
     /// - Throws: `Refusal` when the source nests a shape too deeply for
-    ///   the parser, its tree is too deep for a recursive walk, the parse
+    ///   the parser, nests past the parser's limit of 256, its tree is
+    ///   too deep for a recursive walk, the parse
     ///   runs out of time (two seconds, and 50 µs a byte), or an earlier
     ///   parse ran out of time and still runs.
     public init(source: String, path: String) throws(Refusal) {
@@ -79,6 +80,11 @@ public struct SwiftFile: Sendable {
         let outcome = LargeStack.run(timeLimit: timeLimit, gate: gate) { () -> Result<SwiftFile, Refusal> in
             var parser = Parser(source, maximumNestingLevel: Self.maximumNestingLevel)
             let tree = SourceFileSyntax.parse(from: &parser)
+            // Past its nesting limit, the parser leaves the rest of the file
+            // as unexpected text, so declarations there would be lost.
+            guard !tree.hasMaximumNestingLevelOverflow else {
+                return .failure(.nestedPastParserLimit(limit: Self.maximumNestingLevel))
+            }
             let depth = tree.depth(cappedAt: Self.maximumTreeDepth + 1)
             guard depth <= Self.maximumTreeDepth else {
                 return .failure(.syntaxTreeTooDeep(depth: depth, limit: Self.maximumTreeDepth))
@@ -108,10 +114,12 @@ public struct SwiftFile: Sendable {
     /// runs, and real code nests deeper than 20.
     static let maximumNestingLevel = 256
 
-    /// The deepest tree read. Real code's are a few dozen levels deep
-    /// (53 at most in swift-argument-parser), and a rule's own recursive
-    /// walk, such as a `SyntaxVisitor`, needs stack for each level.
-    static let maximumTreeDepth = 2_048
+    /// The deepest tree read: about half the depth a `SyntaxVisitor` walks
+    /// on a 512 KiB stack in a debug build (it dies past about 1,000), so
+    /// a rule's own recursive walk has the stack for it on any thread.
+    /// Real code's trees are a few dozen levels deep: 93 at most in the
+    /// 2,217 files of this package's dependencies.
+    static let maximumTreeDepth = 512
 
     /// Two seconds, and 50 µs for each byte: about twenty times what a
     /// debug build takes for real code (1.1 MB in 2.6 s on an M4), so

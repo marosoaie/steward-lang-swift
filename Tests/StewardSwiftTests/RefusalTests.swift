@@ -76,7 +76,8 @@ struct RefusalTests {
         arguments: [
             (Refusal.nestingTooDeep(.squareBrackets, line: 7, limit: 1 << 22), "Line 7 nests `[` too deeply"),
             (.nestingTooDeep(.angleBrackets, line: 3, limit: 512), "Line 3 goes past 512 unclosed `<`"),
-            (.syntaxTreeTooDeep(depth: 4_000, limit: 2_048), "4000 levels deep, past the 2048"),
+            (.syntaxTreeTooDeep(depth: 600, limit: 512), "600 levels deep, past the 512"),
+            (.nestedPastParserLimit(limit: 256), "more than 256 levels deep"),
             (.timedOut(limit: .seconds(52)), "didn't finish within 52 s"),
             (.earlierParseStillRunning, "An earlier file's parse ran out of time"),
         ]
