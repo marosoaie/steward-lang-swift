@@ -1,4 +1,4 @@
-import StewardSwift
+@testable import StewardSwift
 import StewardTesting
 import Testing
 
@@ -7,6 +7,13 @@ import Testing
 /// swift-syntax's parser overflows at a few hundred levels.
 @Suite("Deep nesting", .timeLimit(.minutes(5)))
 struct DeepNestingTests {
+    /// Reads `source` with a gate of its own and a generous time limit:
+    /// these tests check that nothing traps, not how long a parse takes on
+    /// a busy machine, and a runaway here mustn't refuse other tests' files.
+    static func read(_ source: String) throws(SwiftFile.Refusal) -> SwiftFile {
+        try SwiftFile.read(source: source, path: "Deep.swift", timeLimit: .seconds(120), gate: ParseGate())
+    }
+
     /// A shape, repeated `depth` times inside itself.
     enum Shape: String, CaseIterable, Sendable {
         case parentheses, braces, functions, types, postfixChain, optionals, memberAccess
@@ -39,7 +46,7 @@ struct DeepNestingTests {
     func deep(shape: Shape) async {
         let source = shape.source(depth: 20_000)
         let outcome = await Task.detached {
-            Result { () throws(SwiftFile.Refusal) in try SwiftFile(source: source, path: "Deep.swift") }
+            Result { () throws(SwiftFile.Refusal) in try Self.read(source) }
         }.value
         switch outcome {
         case .success(let file):
@@ -54,7 +61,7 @@ struct DeepNestingTests {
     @Test("functions nested past the parser's limit are read down to it")
     func functionsPastTheLimit() async throws {
         let source = Shape.functions.source(depth: 1_000)
-        let file = try await Task.detached { try SwiftFile(source: source, path: "Deep.swift") }.value
+        let file = try await Task.detached { try Self.read(source) }.value
         #expect(file.syntax.hasError)
         #expect(file.functions.count > 100)
         #expect(file.functions.map(\.location.line) == Array(1...file.functions.count))
@@ -63,13 +70,13 @@ struct DeepNestingTests {
     @Test("a tree deeper than rules can walk is refused, and one within the limit is read")
     func treeDepth() throws {
         let refusal = #expect(throws: SwiftFile.Refusal.self) {
-            try SwiftFile(source: Shape.postfixChain.source(depth: 2_000), path: "Deep.swift")
+            try Self.read(Shape.postfixChain.source(depth: 2_000))
         }
         if case .syntaxTreeTooDeep(let depth, let limit)? = refusal {
             #expect(depth > limit && limit == 2_048)
         } else {
             Issue.record("expected syntaxTreeTooDeep, got \(String(describing: refusal))")
         }
-        _ = try SwiftFile(source: Shape.postfixChain.source(depth: 500), path: "Deep.swift")
+        _ = try Self.read(Shape.postfixChain.source(depth: 500))
     }
 }
