@@ -11,31 +11,29 @@
 ///   without the parser's nesting limit: a few thousand levels overflow
 ///   even a 64 MiB stack, and 100,000 interpolations exhaust memory.
 ///
-/// The scan follows comments and string literals, so brackets in them
-/// don't count, but it isn't a lexer: it can count a regex literal's
-/// brackets, for instance, which only makes it stricter.
+/// The scan reads the source twice. The first pass follows comments and
+/// string literals, so brackets in them don't count. It isn't a lexer,
+/// though, and a regex literal holding a quote can put it out of step
+/// with the parser for the rest of a line. So a second pass counts the
+/// shapes that crash or exhaust memory (all but `[`) without telling code
+/// from literals, interpolations by the parentheses that close them. A
+/// shape past its limit in either pass is an excess. Neither pass is a
+/// guarantee: `SwiftFile`'s time limit is the backstop for what gets past
+/// them.
 struct NestingScan {
     /// A shape the scan found nested too deeply, and the line where it
-    /// went past its limit.
+    /// went past its limit (`Shape` says what each one is).
     struct Excess: Sendable, Hashable {
         var shape: Shape
         var line: Int
     }
 
-    enum Shape: Sendable, Hashable {
-        /// Nested `[`, past `squareBracketDepth` or `squareBracketBudget`.
-        case squareBrackets
-        /// Unclosed `<`, past `angleBracketDepth`.
-        case angleBrackets
-        /// `#if` blocks, past `conditionalDepth`.
-        case conditionalCompilation
-        /// Interpolations in string literals, past `interpolationDepth`.
-        case interpolation
-    }
+    typealias Shape = SwiftFile.NestingShape
 
-    static let squareBracketDepth = 24
-    /// About 0.4 s of parsing in a release build, and 12 s in a debug one;
-    /// a 1 MB file of ordinary code costs a few hundred thousand.
+    /// Each `[` costs two to the power of its depth, so a run of 21 nested
+    /// ones uses the budget up: about 0.4 s of parsing in a release build,
+    /// and 12 s in a debug one. A 1 MB file of ordinary code costs a few
+    /// hundred thousand.
     static let squareBracketBudget = 1 << 22
     /// Far from the depth that overflows the parser's stack (thousands)
     /// and from what real code writes (a few).
@@ -45,8 +43,10 @@ struct NestingScan {
 
     /// The first shape that goes past its limit in `source`, if one does.
     static func firstExcess(in source: String) -> Excess? {
-        var scanner = Scanner(bytes: Array(source.utf8))
-        return scanner.run()
+        let bytes = Array(source.utf8)
+        var followingLiterals = Scanner(bytes: bytes, followsLiterals: true)
+        var bare = Scanner(bytes: bytes, followsLiterals: false)
+        return followingLiterals.run() ?? bare.run()
     }
 }
 
@@ -62,6 +62,9 @@ private struct Scanner {
     }
 
     private let bytes: [UInt8]
+    /// Whether comments and string literals are told from code. When they
+    /// aren't, `[` isn't counted: a string such as `"["` would add up.
+    private let followsLiterals: Bool
     private var index = 0
     private var line = 1
     /// Whether only spaces and tabs come before the cursor on its line.
@@ -73,8 +76,9 @@ private struct Scanner {
     private var angleBrackets = 0
     private var conditionals = 0
 
-    init(bytes: [UInt8]) {
+    init(bytes: [UInt8], followsLiterals: Bool) {
         self.bytes = bytes
+        self.followsLiterals = followsLiterals
     }
 
     // An imperative loop: a cursor over bytes whose next step depends on
@@ -120,12 +124,14 @@ private struct Scanner {
     private mutating func scanCode(openParentheses: Int, isInterpolation: Bool) -> NestingScan.Shape? {
         guard let current = byte(at: 0) else { return nil }
         switch current {
-        case UInt8(ascii: "/") where byte(at: 1) == UInt8(ascii: "/"):
+        case UInt8(ascii: "/") where followsLiterals && byte(at: 1) == UInt8(ascii: "/"):
             skipLineComment()
-        case UInt8(ascii: "/") where byte(at: 1) == UInt8(ascii: "*"):
+        case UInt8(ascii: "/") where followsLiterals && byte(at: 1) == UInt8(ascii: "*"):
             skipBlockComment()
         case UInt8(ascii: "\""), UInt8(ascii: "#"):
             return scanStringStartOrDirective()
+        case UInt8(ascii: "\\"):
+            return scanBackslash()
         case UInt8(ascii: "("), UInt8(ascii: ")"):
             scanParenthesis(openParentheses: openParentheses, isInterpolation: isInterpolation)
         case UInt8(ascii: "["), UInt8(ascii: "]"), UInt8(ascii: "<"), UInt8(ascii: ">"):
@@ -180,10 +186,29 @@ private struct Scanner {
     }
 
     private mutating func openSquareBracket() -> NestingScan.Shape? {
+        guard followsLiterals else { return nil }
         squareBrackets += 1
-        guard squareBrackets <= NestingScan.squareBracketDepth else { return .squareBrackets }
-        squareBracketCost += 1 << squareBrackets
+        // The budget is spent by depth 22, so the shift never overflows.
+        squareBracketCost += 1 << Swift.min(squareBrackets, 62)
         return squareBracketCost > NestingScan.squareBracketBudget ? .squareBrackets : nil
+    }
+
+    /// A `\` in code: a string's interpolation when the second pass reads
+    /// strings as code, and otherwise text the parser rejects.
+    private mutating func scanBackslash() -> NestingScan.Shape? {
+        let hashes = bytes[(index + 1)...].prefix { $0 == UInt8(ascii: "#") }.count
+        guard byte(at: hashes + 1) == UInt8(ascii: "(") else {
+            advance()
+            return nil
+        }
+        advance(by: hashes + 2)
+        return openInterpolation()
+    }
+
+    private mutating func openInterpolation() -> NestingScan.Shape? {
+        contexts.append(.code(openParentheses: 0, isInterpolation: true))
+        interpolations += 1
+        return interpolations > NestingScan.interpolationDepth ? .interpolation : nil
     }
 
     private mutating func scanLessThan() -> NestingScan.Shape? {
@@ -233,7 +258,7 @@ private struct Scanner {
     /// `#endif` at the start of a line; any other `#` is skipped.
     private mutating func scanStringStartOrDirective() -> NestingScan.Shape? {
         let hashes = bytes[index...].prefix { $0 == UInt8(ascii: "#") }.count
-        if byte(at: hashes) == UInt8(ascii: "\"") {
+        if followsLiterals, byte(at: hashes) == UInt8(ascii: "\"") {
             let isMultiline = byte(at: hashes + 1) == UInt8(ascii: "\"") && byte(at: hashes + 2) == UInt8(ascii: "\"")
             advance(by: hashes + (isMultiline ? 3 : 1))
             contexts.append(.string(hashes: hashes, isMultiline: isMultiline))
@@ -276,9 +301,7 @@ private struct Scanner {
         case UInt8(ascii: "\\") where (0..<hashes).allSatisfy({ byte(at: 1 + $0) == UInt8(ascii: "#") }):
             if byte(at: hashes + 1) == UInt8(ascii: "(") {
                 advance(by: hashes + 2)
-                contexts.append(.code(openParentheses: 0, isInterpolation: true))
-                interpolations += 1
-                return interpolations > NestingScan.interpolationDepth ? .interpolation : nil
+                return openInterpolation()
             }
             advance(by: hashes + 2)
         case UInt8(ascii: "\"") where closesString(hashes: hashes, isMultiline: isMultiline):

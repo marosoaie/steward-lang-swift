@@ -63,7 +63,10 @@ struct RobustnessTests {
 
     private static func checkWhole(_ files: [Corpus.File]) {
         files.forEach { file in
-            let parsed = check(source: file.source, path: file.path, what: file.path)
+            guard case .success(let parsed) = check(source: file.source, path: file.path, what: file.path) else {
+                Issue.record("\(file.path) was refused")
+                return
+            }
             #expect(parsed.syntax.description == file.source, "\(file.path) doesn't read back as written")
             #expect(
                 Invariants.functionsWithWrittenKeyword(in: parsed) == Invariants.writtenFunctionKeywords(in: parsed),
@@ -72,14 +75,19 @@ struct RobustnessTests {
         }
     }
 
+    /// Reads `source` within the budget. A file that's read keeps the
+    /// invariants; a refusal is an outcome too, but never a trap.
     @discardableResult
-    private static func check(source: String, path: String, what: String) -> SwiftFile {
+    private static func check(source: String, path: String, what: String) -> Result<SwiftFile, SwiftFile.Refusal> {
         let clock = ContinuousClock()
-        var file: SwiftFile?
-        let elapsed = clock.measure { file = SwiftFile(source: source, path: path) }
+        var outcome: Result<SwiftFile, SwiftFile.Refusal>?
+        let elapsed = clock.measure {
+            outcome = Result { () throws(SwiftFile.Refusal) in try SwiftFile(source: source, path: path) }
+        }
         #expect(elapsed < parseBudget, "\(what) took \(elapsed)")
-        let parsed = file ?? SwiftFile(source: "", path: path)
-        Invariants.check(parsed, source: source)
-        return parsed
+        if case .success(let file) = outcome {
+            Invariants.check(file, source: source)
+        }
+        return outcome ?? .failure(.earlierParseStillRunning)
     }
 }

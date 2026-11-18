@@ -148,6 +148,48 @@ struct FunctionDeclarationTests {
         #expect(finding.location == Location(path: "Sources/App/Sample.swift", line: 1))
     }
 
+    @Test("signatures are equal for functions declared alike, wherever they are and whatever they do")
+    func signaturesAlike() throws {
+        let functions = try Sample.functions(in: """
+            func load<T: Decodable>(from url: URL, retries: Int = 3) async throws(LoadError) -> T where T: Sendable {
+                try await fetch(url)
+            }
+
+            struct Other {
+                func load<T: Decodable>(from address: URL, retries: Int = 3) async throws(LoadError) -> T
+                    where T: Sendable { fatalError() }
+            }
+            """)
+        #expect(functions.count == 2)
+        #expect(functions[0].signature == functions[1].signature)
+        #expect(Set(functions.map(\.signature)).count == 1)
+        #expect(functions[0].signature.genericParameters == "<T: Decodable>")
+        #expect(functions[0].signature.genericRequirements == "where T: Sendable")
+        #expect(functions[0].signature.thrownType == "LoadError")
+    }
+
+    @Test(
+        "signatures differ when what callers see differs",
+        arguments: [
+            "func load(from url: URL) {}",
+            "func load(at url: URL) {}",
+            "func load(from url: String) {}",
+            "func load(from url: URL) async {}",
+            "func load(from url: URL) throws {}",
+            "func load(from url: URL) -> Data {}",
+            "func load(from url: URL = .root) {}",
+            "func load<T>(from url: URL) {}",
+            "static func load(from url: URL) {}",
+            "public func load(from url: URL) {}",
+            "func fetch(from url: URL) {}",
+        ]
+    )
+    func signaturesDiffer(variant: String) throws {
+        let base = try Sample.function("func load(from url: URL) {}").signature
+        let other = try Sample.function(variant).signature
+        #expect((other == base) == (variant == "func load(from url: URL) {}"))
+    }
+
     @Test("the syntax node is the declaration the model was read from")
     func syntaxNode() throws {
         let function = try Sample.function("func load(from url: URL) {}")

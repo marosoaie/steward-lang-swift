@@ -32,19 +32,44 @@ struct DeepNestingTests {
         }
     }
 
-    @Test("a shape nested 20,000 deep reads without trapping, from async code", arguments: Shape.allCases)
+    @Test(
+        "a shape nested 20,000 deep is read or refused, never trapping, from async code",
+        arguments: Shape.allCases
+    )
     func deep(shape: Shape) async {
         let source = shape.source(depth: 20_000)
-        let file = await Task.detached { SwiftFile(source: source, path: "Deep.swift") }.value
-        Invariants.check(file, source: source)
+        let outcome = await Task.detached {
+            Result { () throws(SwiftFile.Refusal) in try SwiftFile(source: source, path: "Deep.swift") }
+        }.value
+        switch outcome {
+        case .success(let file):
+            Invariants.check(file, source: source)
+        case .failure(.syntaxTreeTooDeep(let depth, let limit)):
+            #expect(depth > limit)
+        case .failure(let refusal):
+            Issue.record("\(shape) was refused before parsing: \(refusal)")
+        }
     }
 
     @Test("functions nested past the parser's limit are read down to it")
-    func functionsPastTheLimit() async {
+    func functionsPastTheLimit() async throws {
         let source = Shape.functions.source(depth: 1_000)
-        let file = await Task.detached { SwiftFile(source: source, path: "Deep.swift") }.value
+        let file = try await Task.detached { try SwiftFile(source: source, path: "Deep.swift") }.value
         #expect(file.syntax.hasError)
         #expect(file.functions.count > 100)
         #expect(file.functions.map(\.location.line) == Array(1...file.functions.count))
+    }
+
+    @Test("a tree deeper than rules can walk is refused, and one within the limit is read")
+    func treeDepth() throws {
+        let refusal = #expect(throws: SwiftFile.Refusal.self) {
+            try SwiftFile(source: Shape.postfixChain.source(depth: 2_000), path: "Deep.swift")
+        }
+        if case .syntaxTreeTooDeep(let depth, let limit)? = refusal {
+            #expect(depth > limit && limit == 2_048)
+        } else {
+            Issue.record("expected syntaxTreeTooDeep, got \(String(describing: refusal))")
+        }
+        _ = try SwiftFile(source: Shape.postfixChain.source(depth: 500), path: "Deep.swift")
     }
 }

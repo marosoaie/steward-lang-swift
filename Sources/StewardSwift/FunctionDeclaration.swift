@@ -7,6 +7,13 @@ import SwiftSyntax
 /// Everything here is read from the syntax, so a return type is the type
 /// as written: a typealias isn't resolved, and a function without `->`
 /// has no return type, not `Void`.
+///
+/// The value isn't `Equatable`: two parses of the same text give
+/// different nodes, and a body edit leaves everything else alike. Compare
+/// `signature` for "declared alike", and the syntax for anything else.
+/// Nor does it have a memberwise initializer: its properties come from
+/// its node, and would disagree with it if they were set by hand. It
+/// keeps the whole file's tree alive.
 public struct FunctionDeclaration: Sendable {
     /// The name without its parameters, such as `load`, or the operator,
     /// such as `==`. An escaped name loses its backticks.
@@ -44,30 +51,35 @@ public struct FunctionDeclaration: Sendable {
     /// documentation, aren't part of it.
     public var lines: ClosedRange<Int>
 
+    /// What the declaration says to callers, as data that compares.
+    public var signature: FunctionSignature
+
     /// The declaration's syntax node. It follows swift-syntax's version,
-    /// not this package's.
+    /// not this package's. Nodes are `Hashable` by identity: two parses of
+    /// the same text give different nodes.
     public var syntax: FunctionDeclSyntax
 }
 
 extension FunctionDeclaration {
     init(_ function: FunctionDeclSyntax, path: String, lines: SourceLines) {
-        let effects = function.signature.effectSpecifiers
-        self.init(
-            name: function.name.unescapedText,
+        let signature = FunctionSignature(
+            function,
             access: AccessLevel(of: function, modifiers: function.modifiers),
-            isAsync: effects?.asyncSpecifier != nil,
-            isThrowing: effects?.throwsClause != nil,
             isStatic: function.modifiers.contains {
                 $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
-            },
-            returnType: function.signature.returnClause.map { TypeName($0.type) },
-            parameters: function.signature.parameterClause.parameters.map {
-                Parameter($0, path: path, lines: lines)
-            },
-            attributes: Attribute.all(in: function.attributes, path: path, lines: lines),
-            location: Location(path: path, line: lines.line(of: function.name)),
-            lines: lines.lines(of: function),
-            syntax: function
+            }
         )
+        name = signature.name
+        access = signature.access
+        isAsync = signature.isAsync
+        isThrowing = signature.isThrowing
+        isStatic = signature.isStatic
+        returnType = signature.returnType
+        parameters = function.signature.parameterClause.parameters.map { Parameter($0, path: path, lines: lines) }
+        attributes = Attribute.all(in: function.attributes, path: path, lines: lines)
+        location = Location(path: path, line: lines.line(of: function.name))
+        self.lines = lines.lines(of: function)
+        self.signature = signature
+        syntax = function
     }
 }

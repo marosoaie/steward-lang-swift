@@ -5,12 +5,12 @@ import Testing
 enum Sample {
     static let path = "Sources/App/Sample.swift"
 
-    static func file(_ source: String) -> SwiftFile {
-        SwiftFile(source: source, path: path)
+    static func file(_ source: String) throws -> SwiftFile {
+        try SwiftFile(source: source, path: path)
     }
 
-    static func functions(in source: String) -> [FunctionDeclaration] {
-        file(source).functions
+    static func functions(in source: String) throws -> [FunctionDeclaration] {
+        try file(source).functions
     }
 
     /// The only function in `source`.
@@ -20,7 +20,7 @@ enum Sample {
         _ source: String,
         sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> FunctionDeclaration {
-        let functions = functions(in: source)
+        let functions = try functions(in: source)
         try #require(
             functions.count == 1,
             "expected one function, found \(functions.map(\.name))",
@@ -35,6 +35,6 @@ enum Sample {
         in source: String,
         sourceLocation: Testing.SourceLocation = #_sourceLocation
     ) throws -> FunctionDeclaration {
-        try #require(functions(in: source).first { $0.name == name }, sourceLocation: sourceLocation)
+        try #require(try functions(in: source).first { $0.name == name }, sourceLocation: sourceLocation)
     }
 }

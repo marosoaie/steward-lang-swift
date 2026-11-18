@@ -21,6 +21,20 @@ extension SyntaxProtocol {
         PreorderWalk(root: Syntax(self), descend: descend)
     }
 
+    /// The depth of the tree under this node, counting the node as 1, or
+    /// `cap` once it reaches `cap`, so a deep tree isn't walked in full.
+    func depth(cappedAt cap: Int) -> Int {
+        // An imperative loop: the stack of nodes and their depths is the
+        // walk's state, and the walk stops as soon as it reaches the cap.
+        var pending = [(Syntax(self), 1)]
+        var deepest = 0
+        while let (node, depth) = pending.popLast(), deepest < cap {
+            deepest = Swift.max(deepest, depth)
+            pending.append(contentsOf: node.children(viewMode: .sourceAccurate).lazy.map { ($0, depth + 1) })
+        }
+        return Swift.min(deepest, cap)
+    }
+
     /// The tokens' text as the source writes it, without comments, and
     /// with one space wherever trivia separates two tokens. Escaped
     /// identifiers lose their backticks.
