@@ -70,6 +70,13 @@ jobs:
           VERSIONS: ${{ hashFiles('Package.swift', 'Package.resolved') }}
         run: echo "key=$PREFIX-$VERSIONS" >> "$GITHUB_OUTPUT"
 
+      # swift-argument-parser's sources, the robustness tests' corpus,
+      # downloaded once (Tests/StewardSwiftTests/Corpus.swift pins the tag).
+      - uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/steward-lang-swift-tests
+          key: corpus-${{ runner.os }}-${{ hashFiles('Tests/StewardSwiftTests/Corpus.swift') }}
+
       # SwiftPM doesn't pass -warnings-as-errors on to dependencies, whose
       # warnings it suppresses.
       - name: Build
@@ -109,6 +116,11 @@ jobs:
           sudo xcode-select -s "$(printf '%s\n' /Applications/Xcode*.app | sort -V | tail -1)"
           xcodebuild -version
 
+      - uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/steward-lang-swift-tests
+          key: corpus-${{ runner.os }}-${{ hashFiles('Tests/StewardSwiftTests/Corpus.swift') }}
+
       - name: Run tests
         run: >-
           xcodebuild test -scheme steward-lang-swift -destination platform=macOS
@@ -140,6 +152,13 @@ jobs:
           swift package resolve
           swift package show-dependencies
 
+      # As in macos-tests; the container's HOME is the runner's, so ~ is the
+      # same for the tests and the cache action.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/steward-lang-swift-tests
+          key: corpus-${{ runner.os }}-${{ hashFiles('Tests/StewardSwiftTests/Corpus.swift') }}
+
       - name: Build
         run: swift build --build-tests -Xswiftc -warnings-as-errors
 
@@ -169,6 +188,13 @@ jobs:
           swift package resolve
           swift package resolve swift-syntax --version "$lowest"
           swift package show-dependencies | grep -F "swift-syntax.git@$lowest>"
+
+      # As in macos-tests; the container's HOME is the runner's, so ~ is the
+      # same for the tests and the cache action.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/steward-lang-swift-tests
+          key: corpus-${{ runner.os }}-${{ hashFiles('Tests/StewardSwiftTests/Corpus.swift') }}
 
       - name: Build
         run: swift build --build-tests -Xswiftc -warnings-as-errors
