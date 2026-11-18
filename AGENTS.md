@@ -132,8 +132,12 @@ so `SwiftFile` defends it:
   can refuse a far larger reservation.
 - `maximumNestingLevel` is 256 in every build configuration (swift-syntax
   defaults to 20 in a debug build, where a Dangerfile usually runs).
-- A tree deeper than 2,048 levels is refused, so a rule's recursive
-  `SyntaxVisitor` has stack to walk it.
+- A source that nests past the parser's limit is refused: the parser
+  would leave the rest of the file as unexpected text, and declarations
+  there would be lost.
+- A tree deeper than 512 levels is refused, so a rule's recursive
+  `SyntaxVisitor` has the stack to walk it even on a 512 KiB thread in a
+  debug build (it dies past about 1,000). Real trees are under 100.
 - The parse has a deadline that grows with the source (2 s and 50 µs a
   byte). One that runs out leaves its thread running, and no other parse
   starts until it ends (`ParseGate`).

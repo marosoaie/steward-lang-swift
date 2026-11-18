@@ -31,8 +31,10 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
 
 - **It refuses what it can't read safely.** A scan of the bytes, before
   parsing, refuses a source that nests `[`, `<`, `#if` or interpolations
-  past fixed limits. A tree deeper than 2,048 levels is refused after
-  parsing, so a rule's own recursive walk has the stack for it. A parse
+  past fixed limits. After parsing, a source that went past the parser's
+  nesting limit is refused, since the parser leaves the rest of such a
+  file unread, and so is a tree deeper than 512 levels, so that a rule's
+  own recursive walk has the stack for it on any thread. A parse
   that runs past its deadline (two seconds, and 50 µs for each byte) is
   refused too. Each refusal is a thrown `SwiftFile.Refusal` that says
   what went past which limit, and is meant to fail the rule that asked:

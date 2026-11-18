@@ -35,7 +35,11 @@ struct TypeNameTests {
 
     @Test(
         "names that resolve to the same type but are spelled differently aren't equal",
-        arguments: [("Int?", "Optional<Int>"), ("Swift.Int", "Int"), ("[Int]", "Array<Int>")]
+        arguments: [
+            ("Int?", "Optional<Int>"), ("Swift.Int", "Int"), ("[Int]", "Array<Int>"),
+            // Whitespace between two words separates them.
+            ("any Error", "anyError"), ("some P", "someP"), ("inout Int", "inoutInt"),
+        ]
     )
     func spellingNotResolution(lhs: String, rhs: String) {
         #expect(TypeName(lhs) != TypeName(rhs))

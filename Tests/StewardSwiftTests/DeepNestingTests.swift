@@ -53,18 +53,34 @@ struct DeepNestingTests {
             Invariants.check(file, source: source)
         case .failure(.syntaxTreeTooDeep(let depth, let limit)):
             #expect(depth > limit)
+        case .failure(.nestedPastParserLimit(let limit)):
+            #expect(limit == 256)
         case .failure(let refusal):
             Issue.record("\(shape) was refused before parsing: \(refusal)")
         }
     }
 
-    @Test("functions nested past the parser's limit are read down to it")
-    func functionsPastTheLimit() async throws {
-        let source = Shape.functions.source(depth: 1_000)
-        let file = try await Task.detached { try Self.read(source) }.value
-        #expect(file.syntax.hasError)
-        #expect(file.functions.count > 100)
-        #expect(file.functions.map(\.location.line) == Array(1...file.functions.count))
+    @Test("source nested past the parser's limit is refused, so nothing after it is lost")
+    func pastTheParserLimit() throws {
+        // Past its limit the parser leaves the rest of the file as
+        // unexpected text, so `hidden` would be missing from the model.
+        let source = Shape.functions.source(depth: 300) + "func hidden() {}\n"
+        #expect(throws: SwiftFile.Refusal.nestedPastParserLimit(limit: 256)) { try Self.read(source) }
+        let shown = try Self.read(Shape.functions.source(depth: 60) + "func shown() {}\n")
+        #expect(shown.functions.last?.name == "shown")
+    }
+
+    @Test("a tree at the depth limit can be walked by a recursive visitor on a 512 KiB stack")
+    func visitorAtTheLimit() throws {
+        // `let x = a` and n calls make a tree 2n + 9 levels deep, so this is
+        // the longest chain the limit lets through. Raise the limit past
+        // what the visitor survives, and this test crashes.
+        let calls = (SwiftFile.maximumTreeDepth - 9) / 2
+        let file = try Self.read(Shape.postfixChain.source(depth: calls))
+        #expect(file.syntax.depth(cappedAt: .max) > SwiftFile.maximumTreeDepth - 3)
+        let walked = LargeStack.runOnSmallStack { NodeCounter.count(file.syntax) }
+        #expect(walked ?? 0 > calls * 4)
+        #expect(throws: SwiftFile.Refusal.self) { try Self.read(Shape.postfixChain.source(depth: calls + 2)) }
     }
 
     @Test("a tree deeper than rules can walk is refused, and one within the limit is read")
@@ -73,10 +89,10 @@ struct DeepNestingTests {
             try Self.read(Shape.postfixChain.source(depth: 2_000))
         }
         if case .syntaxTreeTooDeep(let depth, let limit)? = refusal {
-            #expect(depth > limit && limit == 2_048)
+            #expect(depth > limit && limit == 512)
         } else {
             Issue.record("expected syntaxTreeTooDeep, got \(String(describing: refusal))")
         }
-        _ = try Self.read(Shape.postfixChain.source(depth: 500))
+        _ = try Self.read(Shape.postfixChain.source(depth: 200))
     }
 }
