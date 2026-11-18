@@ -15,13 +15,24 @@ product, `StewardSwift` (`Sources/StewardSwift/`), tested in
 same shape, `steward-lang-<language>`.
 
 Rules are syntactic: a type is matched by how it's spelled, not by what
-it resolves to, which would take a build. The model of a file (its
-functions, types, members and imports) is the package's own value types;
-raw swift-syntax nodes are an escape hatch, not the main API. The library
-holds only that escape hatch so far: it re-exports `SwiftSyntax`, so a
-Dangerfile that reaches for raw nodes imports only `StewardSwift`. The
-model follows this package's version, and a raw node follows
-swift-syntax's.
+it resolves to, which would take a build. The model of a file is the
+package's own value types; raw swift-syntax nodes are an escape hatch, not
+the main API. `SwiftFile(source:path:)` parses a file and reads its
+functions (`FunctionDeclaration`, with its `FunctionSignature`,
+`Parameter`s and `Attribute`s, and `TypeName` and `AccessLevel`); types,
+members and imports follow. Every model value has a `location` that goes
+straight into a `Finding`'s `at:`. `StewardSwift` re-exports
+`SwiftSyntax`, so a Dangerfile that reaches for raw nodes imports only
+`StewardSwift` (and `Steward`, whose `Location` the model uses). The model
+follows this package's version, and a raw node follows swift-syntax's.
+
+A value that holds a node (`SwiftFile`, `FunctionDeclaration`) is
+`Sendable` only: nodes are `Hashable` by identity, so equality would mean
+"the same parse", and it has no memberwise initializer, since its fields
+would disagree with its node if set by hand. `signature` is the value to
+compare. Values that hold no node (`TypeName`, `AccessLevel`,
+`Parameter`, `Attribute`, `FunctionSignature`) are `Hashable`, with public
+memberwise initializers.
 
 ## Dependencies
 
@@ -55,7 +66,8 @@ user's Dangerfile would.
 
 ```sh
 swift build                        # must complete with zero warnings
-swift test                         # full suite; also on Linux
+swift test                         # full suite (~25 s); also on Linux
+STEWARD_SWIFT_SKIP_NETWORK_TESTS=1 swift test   # offline subset
 xcodebuild test -scheme steward-lang-swift -destination platform=macOS
 swiftlint lint --quiet             # must print nothing
 ```
@@ -105,10 +117,45 @@ over hand-computed expectations where one exists. Tests pass under both
 The source a rule reads is hostile input: a pull request's author writes
 it, and what a rule reports can end up in a public comment. Nothing here
 may trap, hang, or read more than the file a rule asked for, whatever the
-source holds. swift-syntax's parser recovers from broken input and caps
-nesting (`maximumNestingLevel`); tests hold the package to that. Text from
-the source that goes into a finding passes through Steward's
-`Markdown.codeSpan(_:)` or `Markdown.escaped(_:)`.
+source holds. Text from the source that goes into a finding passes
+through Steward's `Markdown.codeSpan(_:)` or `Markdown.escaped(_:)`.
+
+swift-syntax's parser recovers from broken input, but it isn't safe on
+hostile input by itself (measured with 604: SECURITY.md lists the shapes),
+so `SwiftFile` defends it:
+
+- `NestingScan` reads the bytes first and refuses a source that nests
+  `[`, `<`, `#if` or interpolations past what the parser reads within
+  bounded stack, memory and time. It's a heuristic, not a lexer.
+- The parse runs on a thread with a 64 MiB stack (`LargeStack`): on
+  macOS, `async` code runs on 512 KiB threads. It's no larger, since Linux
+  can refuse a far larger reservation.
+- `maximumNestingLevel` is 256 in every build configuration (swift-syntax
+  defaults to 20 in a debug build, where a Dangerfile usually runs).
+- A source that nests past the parser's limit is refused: the parser
+  would leave the rest of the file as unexpected text, and declarations
+  there would be lost.
+- A tree deeper than 512 levels is refused, so a rule's recursive
+  `SyntaxVisitor` has the stack to walk it even on a 512 KiB thread in a
+  debug build (it dies past about 1,000). Real trees are under 100.
+- The parse has a deadline that grows with the source (2 s and 50 µs a
+  byte). One that runs out leaves its thread running, and no other parse
+  starts until it ends (`ParseGate`).
+- The package's own walks keep their own stack (`PreorderWalk`), and line
+  numbers come from the source's line feeds (`SourceLines`), as git counts
+  them; swift-syntax's walks and `SourceLocationConverter` recurse.
+
+A refusal is thrown (`SwiftFile.Refusal`), and must fail the rule that
+asked: a skipped file would let a pull request hide from every rule with
+one construct. A source with syntax errors isn't a refusal; it's read, and
+`syntax.hasError` says so.
+
+The robustness tests read real files whole, cut short and mutated, from a
+corpus: this package's own files and swift-argument-parser's, downloaded
+once into `~/Library/Caches/steward-lang-swift-tests/` (on Linux,
+`${XDG_CACHE_HOME:-~/.cache}/steward-lang-swift-tests/`).
+`STEWARD_SWIFT_SKIP_NETWORK_TESTS=1` leaves the download out, and the
+tests that need it.
 
 ## Git
 
