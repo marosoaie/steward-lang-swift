@@ -10,7 +10,8 @@ swift run -c release StewardSwiftBenchmark <directory> [largest] [runs]
 ```
 
 For each of a directory's largest Swift files, it takes the median of
-`runs` timings, after one run to warm up:
+`runs` timings (the lower middle one for an even count), after one run to
+warm up:
 
 - **Parse:** swift-syntax's `Parser` alone, with the same nesting limit
   as `SwiftFile`.
@@ -60,8 +61,9 @@ All 165 files, 1.0 MB: 0.11 s, read once each (9.6 MB/s), none refused.
 
 ### Debug
 
-steward-action builds a Dangerfile in a debug build, where swift-syntax is
-about 40 to 50 times slower (`swift run StewardSwiftBenchmark … 3 3`):
+steward-action builds a Dangerfile in a debug build, where swift-syntax's
+parse is 56 to 71 times slower than in a release build, and `SwiftFile`'s
+whole read 39 to 46 times (`swift run StewardSwiftBenchmark … 3 3`):
 
 | File | KB | Parse (ms) | SwiftFile (ms) | SwiftFile (MB/s) |
 |---|---:|---:|---:|---:|
@@ -90,5 +92,5 @@ All 321 swift-syntax files: 31.8 s. All 165 swift-argument-parser files:
   scan reads the bytes twice, the tree is walked to check its depth and
   again to read the model, and the parse hops to a thread of its own.
 - **Debug or release.** A Dangerfile built in release reads Swift about 40
-  times faster. Whether steward-action should build one in release is a
+  times faster (`SwiftFile`'s whole read; the bare parse, 56 to 71 times). Whether steward-action should build one in release is a
   question for steward-action and the maintainer, not settled here.

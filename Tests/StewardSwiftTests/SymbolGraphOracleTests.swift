@@ -12,7 +12,7 @@ struct SymbolGraphOracleTests {
     @Test("every function in the compiler's symbol graph is read alike")
     func functionsMatchTheSymbolGraph() async throws {
         let graph = try await SymbolGraphOracle.graph.value
-        #expect(graph.functions.count > 500, "the graph listed only \(graph.functions.count) functions with a location")
+        #expect(graph.functions.count > 300, "the graph listed only \(graph.functions.count) functions with a location")
         let byFile = Dictionary(grouping: graph.functions, by: \.path)
         let differences = try byFile.keys.sorted().flatMap { path -> [String] in
             let data = try Data(contentsOf: graph.root.appendingPathComponent(path))

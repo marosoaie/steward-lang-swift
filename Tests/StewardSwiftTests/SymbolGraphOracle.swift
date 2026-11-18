@@ -1,5 +1,6 @@
 import Foundation
 import StewardSwift
+import Testing
 
 /// The compiler's view of swift-argument-parser's functions: its symbol
 /// graph, at the minimum access level `private`, which the compiler writes
@@ -29,21 +30,25 @@ enum SymbolGraphOracle {
         }
     }
 
-    /// The checkout the graph was built from, and the functions it lists.
+    /// The checkout whose sources the graph describes, and the functions it
+    /// lists.
     struct Graph: Sendable {
         var root: URL
         var functions: [Function]
     }
 
-    /// The functions the symbol graph lists with a location in the source.
-    /// Synthesized and inherited members, which no line declares, are left
-    /// out.
+    /// The functions the symbol graph lists with a location in the source,
+    /// each once. Members without a location, and the copies the graph
+    /// makes of a protocol extension's default for each conforming type
+    /// (`::SYNTHESIZED::`, at the original's location), are left out.
     static let graph = Task<Graph, any Error> {
         let checkout = try await Corpus.argumentParser.value
-        // A copy, so the build's products stay out of the cache.
+        // Built in a copy, so the build's products stay out of the cache,
+        // and removed once its graph is read.
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("steward-lang-swift-oracle-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.copyItem(at: checkout, to: root)
+        defer { try? FileManager.default.removeItem(at: root) }
         let directory = root.appendingPathComponent(".symbol-graphs", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let compilerFlags = [
@@ -52,14 +57,20 @@ enum SymbolGraphOracle {
         ]
         _ = try run(["swift", "build", "--package-path", root.path] + compilerFlags.flatMap { ["-Xswiftc", $0] })
         let rootPath = root.standardizedFileURL.resolvingSymlinksInPath().path
-        let functions = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        let listed = try FileManager.default.contentsOfDirectory(atPath: directory.path)
             .filter { $0.hasSuffix(".symbols.json") }
             .flatMap { name in
                 let data = try Data(contentsOf: directory.appendingPathComponent(name))
                 let file = try JSONDecoder().decode(GraphFile.self, from: data)
                 return file.symbols.compactMap { $0.function(under: rootPath) }
             }
-        return Graph(root: root, functions: functions)
+        // A module's graph and its extensions' graphs can list one function
+        // twice; keep the first of each.
+        let functions = Dictionary(grouping: listed) { "\($0.path):\($0.line):\($0.name)" }
+            .values.compactMap(\.first)
+            .sorted { ($0.path, $0.line, $0.name) < ($1.path, $1.line, $1.name) }
+        // The copy's sources are the checkout's.
+        return Graph(root: checkout, functions: functions)
     }
 
     private static func run(_ arguments: [String]) throws -> String {
@@ -89,6 +100,10 @@ private struct GraphKind: Decodable {
     var identifier: String
 }
 
+private struct GraphIdentifier: Decodable {
+    var precise: String
+}
+
 private struct GraphNames: Decodable {
     var title: String
 }
@@ -109,6 +124,7 @@ private struct GraphFragment: Decodable {
 
 private struct GraphSymbol: Decodable {
     var kind: GraphKind
+    var identifier: GraphIdentifier
     var names: GraphNames
     var accessLevel: String
     var location: GraphLocation?
@@ -118,6 +134,7 @@ private struct GraphSymbol: Decodable {
 
     func function(under root: String) -> SymbolGraphOracle.Function? {
         guard Self.functionKinds.contains(kind.identifier),
+              !identifier.precise.contains("::SYNTHESIZED::"),
               let location,
               let url = URL(string: location.uri)
         else { return nil }
@@ -156,18 +173,64 @@ private struct GraphSymbol: Decodable {
                 }
                 continue
             }
+            // Character by character: the printer joins text such as
+            // `() -> (` into one fragment, with the arrow between brackets.
+            var previous: Character?
             fragment.spelling.forEach { character in
                 if character == "(" {
                     depth += 1
                 } else if character == ")" {
                     depth -= 1
                     if depth == 0 { parametersDone = true }
+                } else if character == ">", previous == "-", parametersDone, depth == 0 {
+                    arrowSeen = true
                 }
-            }
-            if parametersDone && depth == 0 && fragment.spelling.contains("->") {
-                arrowSeen = true
+                previous = character
             }
         }
         return keywords
+    }
+}
+
+/// The oracle's own reading of a symbol, which needs no build.
+@Suite("Symbol graph oracle's reading")
+struct SymbolGraphReadingTests {
+    fileprivate static func symbol(_ fragments: [(String, String)], kind: String = "swift.func") throws -> GraphSymbol {
+        let json = """
+            {"kind": {"identifier": "\(kind)"}, "identifier": {"precise": "s:1f"}, "names": {"title": "f()"},
+             "accessLevel": "public", "location": {"uri": "file:///root/F.swift", "position": {"line": 0}},
+             "declarationFragments": [\(fragments.map { #"{"kind": "\#($0.0)", "spelling": "\#($0.1)"}"# }
+                .joined(separator: ", "))]}
+            """
+        return try JSONDecoder().decode(GraphSymbol.self, from: Data(json.utf8))
+    }
+
+    @Test("an effect in a closure type, among the parameters or in the return type, isn't the function's")
+    func closureEffects() throws {
+        // `func handler() -> (Int) throws -> Void`, as the printer splits it.
+        let returning = try Self.symbol([
+            ("keyword", "func"), ("text", " "), ("identifier", "handler"), ("text", "() -> ("),
+            ("typeIdentifier", "Int"), ("text", ") "), ("keyword", "throws"), ("text", " -> "),
+            ("typeIdentifier", "Void"),
+        ])
+        #expect(!returning.ownKeywords.contains("throws"))
+        // `func f(_ g: () async -> Void) async throws`
+        let taking = try Self.symbol([
+            ("keyword", "func"), ("text", " "), ("identifier", "f"), ("text", "(_ g: () "),
+            ("keyword", "async"), ("text", " -> "), ("typeIdentifier", "Void"), ("text", ") "),
+            ("keyword", "async"), ("text", " "), ("keyword", "throws"),
+        ])
+        #expect(taking.ownKeywords == ["func", "async", "throws"])
+    }
+
+    @Test("a synthesized copy of a protocol extension's default isn't read")
+    func synthesized() throws {
+        let json = """
+            {"kind": {"identifier": "swift.method"}, "identifier": {"precise": "s:1P1fyyF::SYNTHESIZED::s:1S"},
+             "names": {"title": "f()"}, "accessLevel": "public",
+             "location": {"uri": "file:///root/F.swift", "position": {"line": 0}}}
+            """
+        let symbol = try JSONDecoder().decode(GraphSymbol.self, from: Data(json.utf8))
+        #expect(symbol.function(under: "/root") == nil)
     }
 }

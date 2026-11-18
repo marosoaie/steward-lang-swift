@@ -16,8 +16,10 @@ guard arguments.count > 1 else {
     exit(2)
 }
 let root = URL(fileURLWithPath: arguments[1]).standardizedFileURL
-let largest = arguments.count > 2 ? Int(arguments[2]) ?? 10 : 10
-let runs = arguments.count > 3 ? Int(arguments[3]) ?? 5 : 5
+// At least one run, and no fewer than no files: a range or a prefix with a
+// negative bound would trap.
+let largest = max(0, arguments.count > 2 ? Int(arguments[2]) ?? 10 : 10)
+let runs = max(1, arguments.count > 3 ? Int(arguments[3]) ?? 5 : 5)
 
 struct Source {
     var path: String
@@ -37,11 +39,12 @@ let sources = (FileManager.default.enumerator(at: root, includingPropertiesForKe
 
 let clock = ContinuousClock()
 
-/// The median of `runs` timings of `work`, after one run to warm up.
+/// The median of `runs` timings of `work`, after one run to warm up: the
+/// middle one, or the lower of the two in the middle for an even count.
 func median(_ work: () -> Void) -> Duration {
     work()
     let times = (0..<runs).map { _ in clock.measure(work) }.sorted()
-    return times[times.count / 2]
+    return times[(times.count - 1) / 2]
 }
 
 /// `value` with one decimal, without `String(format:)`, whose C varargs

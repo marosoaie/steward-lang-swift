@@ -165,7 +165,8 @@ tests that need it.
 
 The oracle is the compiler: `SymbolGraphOracleTests` builds
 swift-argument-parser and reads its symbol graph at minimum access level
-`private`, and every function it lists with a location (about 600) must be
+`private`, and every function it lists at a line of the source (345, each
+once: the copies it makes of protocol-extension defaults are left out) must be
 read at the same line with the same name, `async`, `throws`, access level
 and `static`. It needs a build, so it runs only with
 `STEWARD_SWIFT_ORACLE=1`; CI's macos-tests job sets it. The benchmark
