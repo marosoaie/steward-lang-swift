@@ -21,7 +21,8 @@ struct SymbolGraphOracleTests {
         #expect(graph.functions.count > 300, "the graph listed only \(graph.functions.count) functions with a location")
         // With synthesized copies left out, no function should be listed
         // twice; one that is would hide an overload.
-        let twice = Dictionary(grouping: graph.functions) { "\($0.path):\($0.line) \($0.title)" }.filter { $0.value.count > 1 }
+        let twice = Dictionary(grouping: graph.functions) { "\($0.path):\($0.line) \($0.title)" }
+            .filter { $0.value.count > 1 }
         #expect(twice.isEmpty, "listed more than once: \(twice.keys.sorted())")
         let byFile = Dictionary(grouping: graph.functions, by: \.path)
         let differences = try byFile.keys.sorted().flatMap { path -> [String] in
