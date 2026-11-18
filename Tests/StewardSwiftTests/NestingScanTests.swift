@@ -15,6 +15,14 @@ struct NestingScanTests {
         ("let x: " + nested("A<\n", ">", depth: 513, inner: "B"), Excess(shape: .angleBrackets, line: 513)),
         ("let x = " + String(repeating: "a < ", count: 513) + "b", Excess(shape: .angleBrackets, line: 1)),
         (nested("#if A\n", "#endif\n", depth: 513, inner: ""), Excess(shape: .conditionalCompilation, line: 513)),
+        // The parser reads `#if` wherever it stands, not only first on its line.
+        (nested("/**/#if A\n", "#endif\n", depth: 513, inner: ""), Excess(shape: .conditionalCompilation, line: 513)),
+        (
+            nested("let a = 1; #if A\n", "#endif\n", depth: 513, inner: ""),
+            Excess(shape: .conditionalCompilation, line: 513)
+        ),
+        (nested("\u{0C}#if A\n", "#endif\n", depth: 513, inner: ""), Excess(shape: .conditionalCompilation, line: 513)),
+        (nested("#if A\r", "#endif\r", depth: 513, inner: ""), Excess(shape: .conditionalCompilation, line: 1)),
         ("let x = " + nested("\"\\(", ")\"", depth: 513), Excess(shape: .interpolation, line: 1)),
         ("let x = " + nested("#\"\\#(", ")\"#", depth: 513), Excess(shape: .interpolation, line: 1)),
     ]

@@ -17,9 +17,20 @@
 /// with the parser for the rest of a line. So a second pass counts the
 /// shapes that crash or exhaust memory (all but `[`) without telling code
 /// from literals, interpolations by the parentheses that close them. A
-/// shape past its limit in either pass is an excess. Neither pass is a
-/// guarantee: `SwiftFile`'s time limit is the backstop for what gets past
-/// them.
+/// shape past its limit in either pass is an excess.
+///
+/// The scan stops accidents, not an author who means it. A line that puts
+/// the first pass out of step (`let r = #/ /* /#`, a regex literal to the
+/// parser and an unterminated comment to the scan) blinds it, and comments
+/// can then close what the parser keeps open in the second, so two lines
+/// can still crash or exhaust a run. `SwiftFile`'s time limit is the
+/// backstop for time; for stack and memory, the containment is a parse in
+/// a process of its own (SECURITY.md).
+///
+/// It can also refuse honest source, rarely: 513 comparisons with no `{`,
+/// `}`, `;` or assignment between them (in one long test function, say),
+/// or a run of regex literals holding an unescaped `[`, each of which the
+/// first pass counts as left open.
 struct NestingScan {
     /// A shape the scan found nested too deeply, and the line where it
     /// went past its limit (`Shape` says what each one is).
@@ -36,7 +47,9 @@ struct NestingScan {
     /// hundred thousand.
     static let squareBracketBudget = 1 << 22
     /// Far from the depth that overflows the parser's stack (thousands)
-    /// and from what real code writes (a few).
+    /// and from what real code writes (a few). Not from slow, though: in
+    /// an expression, `a<a<a…` parses in quadratic time, about a second at
+    /// 512 levels in a debug build, which the time limit covers.
     static let angleBracketDepth = 512
     static let conditionalDepth = 512
     static let interpolationDepth = 512
@@ -255,7 +268,13 @@ private struct Scanner {
     }
 
     /// A string literal's opening quotes, raw or not, or a `#if` or
-    /// `#endif` at the start of a line; any other `#` is skipped.
+    /// `#endif`; any other `#` is skipped.
+    ///
+    /// The first pass counts `#if` wherever it stands in code: the parser
+    /// reads one after a comment, a semicolon, a form feed or a lone `\r`
+    /// as well as at the start of a line. The second pass, which reads
+    /// strings as code, counts only one that starts a line, or a string
+    /// such as `"#if DEBUG"` would add up.
     private mutating func scanStringStartOrDirective() -> NestingScan.Shape? {
         let hashes = bytes[index...].prefix { $0 == UInt8(ascii: "#") }.count
         if followsLiterals, byte(at: hashes) == UInt8(ascii: "\"") {
@@ -264,7 +283,7 @@ private struct Scanner {
             contexts.append(.string(hashes: hashes, isMultiline: isMultiline))
             return nil
         }
-        if hashes == 1, isAtStartOfLine {
+        if hashes == 1, followsLiterals || isAtStartOfLine {
             if matchesWord("if", at: 1) {
                 conditionals += 1
                 advance(by: 3)

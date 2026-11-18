@@ -64,9 +64,11 @@ public struct TypeName: Sendable, Hashable, ExpressibleByStringLiteral, CustomSt
 }
 
 extension Unicode.Scalar {
-    /// Whether the scalar can be part of an identifier or a keyword.
+    /// Whether the scalar can be part of an identifier or a keyword: every
+    /// one beyond ASCII counts, since identifiers can hold emoji and other
+    /// symbols.
     fileprivate var isWordScalar: Bool {
-        properties.isAlphabetic || properties.numericType != nil || self == "_" || self == "$"
+        value >= 0x80 || properties.isAlphabetic || properties.numericType != nil || self == "_" || self == "$"
     }
 }
 
