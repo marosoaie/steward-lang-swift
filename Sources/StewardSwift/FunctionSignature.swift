@@ -4,9 +4,12 @@ import SwiftSyntax
 /// functions with equal signatures are declared alike, wherever they are
 /// and whatever their bodies do.
 ///
-/// It leaves out what callers can't see: the parameters' names inside
-/// the function, the attributes, the location and the body. Types compare
-/// by spelling, as `TypeName` does.
+/// It leaves out the parameters' names inside the function, the location
+/// and the body, which callers can't see, and the attributes and the
+/// modifiers other than `static`, `class` and the access level (such as
+/// `mutating`, `nonisolated`, `override` and `final`), which they can:
+/// compare those through `FunctionDeclaration` when a rule needs them.
+/// Types compare by spelling, as `TypeName` does.
 public struct FunctionSignature: Sendable, Hashable {
     /// A parameter as callers see it.
     public struct Parameter: Sendable, Hashable {

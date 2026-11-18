@@ -38,7 +38,7 @@ struct TypeNameTests {
         arguments: [
             ("Int?", "Optional<Int>"), ("Swift.Int", "Int"), ("[Int]", "Array<Int>"),
             // Whitespace between two words separates them.
-            ("any Error", "anyError"), ("some P", "someP"), ("inout Int", "inoutInt"),
+            ("any Error", "anyError"), ("some P", "someP"), ("inout Int", "inoutInt"), ("any 😀", "any😀"),
         ]
     )
     func spellingNotResolution(lhs: String, rhs: String) {
