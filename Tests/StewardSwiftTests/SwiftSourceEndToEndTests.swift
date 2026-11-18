@@ -87,23 +87,23 @@ struct SwiftSourceEndToEndTests {
         // No backtrace: the crash's report is the runtime's one line.
         let environment = Subprocess.environment(adding: ["SWIFT_BACKTRACE": "enable=no"])
         return try Subprocess.run(
-            try Self.fixture(), ["--base", "main"], environment: environment, in: repository.url
+            try Self.executable("SwiftRulesFixture"), ["--base", "main"], environment: environment, in: repository.url
         )
     }
 
-    /// The SwiftRulesFixture executable the test build puts beside the
-    /// tests: on macOS, `swift test` and Xcode put the tests' `.xctest`
-    /// bundle there, and on Linux the tests are an executable there.
-    static func fixture() throws -> URL {
+    /// The executable `name` the test build puts beside the tests: on
+    /// macOS, `swift test` and Xcode put the tests' `.xctest` bundle there,
+    /// and on Linux the tests are an executable there.
+    static func executable(_ name: String) throws -> URL {
         let directories = [
             Bundle(for: BundleMarker.self).bundleURL.deletingLastPathComponent(),
             URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent(),
             Bundle.main.bundleURL,
         ]
-        let found = directories.map { $0.appendingPathComponent("SwiftRulesFixture") }
+        let found = directories.map { $0.appendingPathComponent(name) }
             .first { FileManager.default.isExecutableFile(atPath: $0.path) }
         guard let found else {
-            throw SubprocessError("SwiftRulesFixture wasn't built beside the tests in \(directories.map(\.path))")
+            throw SubprocessError("\(name) wasn't built beside the tests in \(directories.map(\.path))")
         }
         return found
     }

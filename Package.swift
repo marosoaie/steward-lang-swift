@@ -63,10 +63,19 @@ let package = Package(
             path: "Tests/SwiftRulesFixture",
             swiftSettings: swiftSettings
         ),
+        // The README's Dangerfile and worked rules, which ReadmeTests holds
+        // the README to and runs. Not a product.
+        .executableTarget(
+            name: "ReadmeDangerfile",
+            dependencies: ["StewardSwift"],
+            path: "Tests/ReadmeDangerfile",
+            swiftSettings: swiftSettings
+        ),
         .testTarget(
             name: "StewardSwiftTests",
             dependencies: [
                 "StewardSwift",
+                "ReadmeDangerfile",
                 "SwiftRulesFixture",
                 .product(name: "StewardTesting", package: "swift-steward"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
