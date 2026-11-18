@@ -53,6 +53,25 @@ struct MemberBlockTests {
         #expect(block.members.map(\.isStatic) == [false, true] + Array(repeating: false, count: 10))
     }
 
+    @Test(
+        "an enum's cases and a deinit have their type's access level, but at least internal",
+        arguments: [
+            ("public enum S { case a }", AccessLevel.Level.public),
+            ("package enum S { case a }", .package),
+            ("enum S { case a }", .internal),
+            ("fileprivate enum S { case a }", .internal),
+            ("private enum S { case a }", .internal),
+            ("open class S { deinit {} }", .open),
+            ("public struct S: ~Copyable { deinit {} }", .public),
+            ("public actor S { deinit {} }", .public),
+            ("fileprivate class S { deinit {} }", .internal),
+        ]
+    )
+    func implicitMemberAccess(source: String, level: AccessLevel.Level) throws {
+        let member = try #require(try Sample.file(source).memberBlocks.first?.members.first)
+        #expect(member.access == AccessLevel(level: level, isExplicit: false))
+    }
+
     @Test("an enum's cases are members, with the enum's access level")
     func enumCases() throws {
         let block = try #require(try Sample.file("""

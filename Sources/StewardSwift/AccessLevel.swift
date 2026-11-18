@@ -81,11 +81,15 @@ extension AccessLevel {
 }
 
 extension AccessLevel {
-    /// The level of an enum's case in `block`: the enum's, which a case
-    /// can't write out.
-    init(caseIn block: MemberBlockSyntax) {
-        let level = block.parent?.as(EnumDeclSyntax.self).map { AccessLevel(of: $0, modifiers: $0.modifiers).level }
-        self.init(level: level ?? .internal, isExplicit: false)
+    /// The level of a member that can't write one out, an enum's case or a
+    /// deinitializer, in `block`: its type's, but at least `internal`, as
+    /// Swift gives them (checked with `swiftc -dump-ast`: a case of a
+    /// `private` enum is `internal`, a deinit of an `open` class `open`).
+    init(implicitMemberOf block: MemberBlockSyntax) {
+        let owner = block.parent.flatMap { parent in
+            parent.asProtocol((any DeclGroupSyntax).self).map { AccessLevel(of: parent, modifiers: $0.modifiers) }
+        }
+        self.init(level: Swift.max(.internal, owner?.level ?? .internal), isExplicit: false)
     }
 }
 
