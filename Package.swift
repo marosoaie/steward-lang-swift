@@ -54,10 +54,20 @@ let package = Package(
             path: "Benchmarks/StewardSwiftBenchmark",
             swiftSettings: swiftSettings
         ),
+        // The Dangerfile the end-to-end tests run as its own process, as a
+        // workflow runs one. A dependency of the tests, so that building
+        // them builds it; not a product.
+        .executableTarget(
+            name: "SwiftRulesFixture",
+            dependencies: ["StewardSwift"],
+            path: "Tests/SwiftRulesFixture",
+            swiftSettings: swiftSettings
+        ),
         .testTarget(
             name: "StewardSwiftTests",
             dependencies: [
                 "StewardSwift",
+                "SwiftRulesFixture",
                 .product(name: "StewardTesting", package: "swift-steward"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],
