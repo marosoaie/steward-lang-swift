@@ -28,6 +28,18 @@ struct MemberBlockTests {
         #expect(blocks[3].access == AccessLevel(level: .public, isExplicit: true))
     }
 
+    @Test("a block has its owner's inherited types and attributes, an extension's conformances among them")
+    func ownersConformances() throws {
+        let blocks = try Sample.file("""
+            @MainActor
+            final class Cache: NSObject {}
+            @available(macOS 26, *)
+            extension Cache: @unchecked Sendable, Identifiable {}
+            """).memberBlocks
+        #expect(blocks.map(\.inheritedTypes) == [["NSObject"], ["@unchecked Sendable", "Identifiable"]])
+        #expect(blocks.map { $0.attributes.map(\.name) } == [["MainActor"], ["available"]])
+    }
+
     @Test("members are listed in source order, one for each name, with their kinds")
     func membersInOrder() throws {
         let block = try #require(try Sample.file("""

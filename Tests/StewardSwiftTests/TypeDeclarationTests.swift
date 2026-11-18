@@ -44,6 +44,12 @@ struct TypeDeclarationTests {
         #expect(types.map(\.name) == ["Outer", "Inner", "Deepest", "InExtension", "Local", "Debug", "Release"])
     }
 
+    @Test("a type says whether it's final")
+    func isFinal() throws {
+        let types = try Sample.file("final class A {}\nclass B {}\npublic final class C {}\nstruct D {}").types
+        #expect(types.map(\.isFinal) == [true, false, true, false])
+    }
+
     @Test("inherited types are spelled as written, in order")
     func inheritedTypes() throws {
         let type = try #require(try Sample.file("""
