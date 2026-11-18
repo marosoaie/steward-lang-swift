@@ -72,6 +72,8 @@ user's Dangerfile would.
 swift build                        # must complete with zero warnings
 swift test                         # full suite (~25 s); also on Linux
 STEWARD_SWIFT_SKIP_NETWORK_TESTS=1 swift test   # offline subset
+STEWARD_SWIFT_ORACLE=1 swift test --filter SymbolGraphOracle   # builds the corpus
+swift run -c release StewardSwiftBenchmark <directory>          # docs/performance.md
 xcodebuild test -scheme steward-lang-swift -destination platform=macOS
 swiftlint lint --quiet             # must print nothing
 ```
@@ -160,6 +162,16 @@ once into `~/Library/Caches/steward-lang-swift-tests/` (on Linux,
 `${XDG_CACHE_HOME:-~/.cache}/steward-lang-swift-tests/`).
 `STEWARD_SWIFT_SKIP_NETWORK_TESTS=1` leaves the download out, and the
 tests that need it.
+
+The oracle is the compiler: `SymbolGraphOracleTests` builds
+swift-argument-parser and reads its symbol graph at minimum access level
+`private`, and every function it lists with a location (about 600) must be
+read at the same line with the same name, `async`, `throws`, access level
+and `static`. It needs a build, so it runs only with
+`STEWARD_SWIFT_ORACLE=1`; CI's macos-tests job sets it. The benchmark
+(`Benchmarks/StewardSwiftBenchmark`, not a product) times the read on a
+directory's largest files; [docs/performance.md](docs/performance.md)
+records its numbers. Benchmark in a release build only.
 
 ## Git
 

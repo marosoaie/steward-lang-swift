@@ -5,6 +5,7 @@
 included:
   - Sources
   - Tests
+  - Benchmarks
 
 opt_in_rules:
   # Functional style (AGENTS.md: combinators over loops).
