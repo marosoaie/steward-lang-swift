@@ -62,6 +62,56 @@ enum LargeStack {
         }
     }
 
+    /// What `use` makes of what `read` returns, both run on a new thread
+    /// with a `size` stack, one after the other, or nil when `read` isn't
+    /// done within `timeLimit`; the calling task's thread isn't blocked
+    /// meanwhile.
+    ///
+    /// The limit is `read`'s alone: `use` starts only when `read` ended in
+    /// time, and runs for as long as it takes. A `read` that runs out of
+    /// time runs on until it ends or the process exits, and `gate` counts it
+    /// as a runaway meanwhile; `use` is never called for it.
+    static func value<Read: Sendable, Value: Sendable>(
+        timeLimit: Duration,
+        gate: ParseGate,
+        reading read: @escaping @Sendable () -> Read,
+        then use: @escaping @Sendable (Read) -> Value
+    ) async -> Value? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Value?, Never>) in
+            let hop = Hop()
+            let thread = Thread {
+                let result = read()
+                // Under the hop's lock, as the timer's side is, so exactly
+                // one of the two resumes the task.
+                let isInTime = hop.phase.withLock { phase in
+                    guard case .reading = phase else { return false }
+                    phase = .using
+                    return true
+                }
+                guard isInTime else {
+                    gate.runawayEnded()
+                    return
+                }
+                continuation.resume(returning: use(result))
+            }
+            thread.stackSize = size
+            thread.start()
+            DispatchQueue.global().asyncAfter(deadline: .now() + dispatchInterval(timeLimit)) {
+                // Under the hop's lock, so the thread can't end the runaway
+                // before it starts.
+                let isLate = hop.phase.withLock { phase in
+                    guard case .reading = phase else { return false }
+                    phase = .abandoned
+                    gate.runawayStarted()
+                    return true
+                }
+                if isLate {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+
     /// `duration` in nanoseconds, between zero and about thirty years, so
     /// no duration can overflow the conversion.
     static func dispatchInterval(_ duration: Duration) -> DispatchTimeInterval {
@@ -77,6 +127,22 @@ enum LargeStack {
     private final class Slot<Value: Sendable>: Sendable {
         let state = Mutex<SlotState<Value>>(.waiting)
     }
+
+    /// Where `value(timeLimit:gate:reading:then:)`'s thread and timer meet.
+    /// A class, so that both share it; nothing else holds one.
+    private final class Hop: Sendable {
+        let phase = Mutex(HopPhase.reading)
+    }
+}
+
+/// How far a `LargeStack.value(timeLimit:gate:reading:then:)` has got.
+private enum HopPhase {
+    /// The read runs, within the time limit.
+    case reading
+    /// The read ended in time, and what uses it runs, with no limit.
+    case using
+    /// The read ran out of time; nobody waits for it.
+    case abandoned
 }
 
 /// What a `LargeStack` thread has done with its work.
