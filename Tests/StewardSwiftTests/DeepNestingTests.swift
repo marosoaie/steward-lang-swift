@@ -51,6 +51,7 @@ struct DeepNestingTests {
         switch outcome {
         case .success(let file):
             Invariants.check(file, source: source)
+            Invariants.checkDeclarations(file, source: source)
         case .failure(.syntaxTreeTooDeep(let depth, let limit)):
             #expect(depth > limit)
         case .failure(let refusal):

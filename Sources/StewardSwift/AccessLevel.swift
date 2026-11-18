@@ -80,6 +80,15 @@ extension AccessLevel {
     }
 }
 
+extension AccessLevel {
+    /// The level of an enum's case in `block`: the enum's, which a case
+    /// can't write out.
+    init(caseIn block: MemberBlockSyntax) {
+        let level = block.parent?.as(EnumDeclSyntax.self).map { AccessLevel(of: $0, modifiers: $0.modifiers).level }
+        self.init(level: level ?? .internal, isExplicit: false)
+    }
+}
+
 extension AccessLevel.Level {
     /// The level a modifier in `modifiers` writes out, if one does.
     init?(writtenIn modifiers: DeclModifierListSyntax) {

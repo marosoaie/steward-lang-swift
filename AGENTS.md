@@ -18,21 +18,25 @@ Rules are syntactic: a type is matched by how it's spelled, not by what
 it resolves to, which would take a build. The model of a file is the
 package's own value types; raw swift-syntax nodes are an escape hatch, not
 the main API. `SwiftFile(source:path:)` parses a file and reads its
-functions (`FunctionDeclaration`, with its `FunctionSignature`,
-`Parameter`s and `Attribute`s, and `TypeName` and `AccessLevel`); types,
-members and imports follow. Every model value has a `location` that goes
+`imports` (`Import`), `types` (`TypeDeclaration`), `memberBlocks`
+(`MemberBlock`, a type's or an extension's `Member`s in source order, for
+ordering rules) and `functions` (`FunctionDeclaration`, with its
+`FunctionSignature`, `Parameter`s and `Attribute`s), all at any depth and
+in every branch of an `#if`; names of types are `TypeName`s and access
+levels `AccessLevel`s. Every model value has a `location` that goes
 straight into a `Finding`'s `at:`. `StewardSwift` re-exports
 `SwiftSyntax`, so a Dangerfile that reaches for raw nodes imports only
 `StewardSwift` (and `Steward`, whose `Location` the model uses). The model
 follows this package's version, and a raw node follows swift-syntax's.
 
-A value that holds a node (`SwiftFile`, `FunctionDeclaration`) is
+A value that holds a node (`SwiftFile`, `FunctionDeclaration`,
+`TypeDeclaration`, `MemberBlock`) is
 `Sendable` only: nodes are `Hashable` by identity, so equality would mean
 "the same parse", and it has no memberwise initializer, since its fields
 would disagree with its node if set by hand. `signature` is the value to
 compare. Values that hold no node (`TypeName`, `AccessLevel`,
-`Parameter`, `Attribute`, `FunctionSignature`) are `Hashable`, with public
-memberwise initializers.
+`Parameter`, `Attribute`, `FunctionSignature`, `Member`, `Import`) are
+`Hashable`, with public memberwise initializers.
 
 ## Dependencies
 

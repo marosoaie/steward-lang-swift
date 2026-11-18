@@ -25,6 +25,18 @@ public struct SwiftFile: Sendable {
     /// names.
     public var path: String
 
+    /// The `import` declarations, in source order.
+    public var imports: [Import]
+
+    /// Every struct, class, enum, actor and protocol declaration, in source
+    /// order, at any depth: nested in types and extensions, local to
+    /// functions, and in each branch of an `#if`.
+    public var types: [TypeDeclaration]
+
+    /// Every type's and extension's member block, in source order, at any
+    /// depth: what an ordering rule reads.
+    public var memberBlocks: [MemberBlock]
+
     /// Every `func` declaration, in source order, at any depth: in types,
     /// extensions and protocols, inside other functions and closures, and
     /// in each branch of an `#if`.
@@ -79,9 +91,13 @@ public struct SwiftFile: Sendable {
 
     private init(tree: SourceFileSyntax, source: String, path: String) {
         let lines = SourceLines(source: source)
+        let nodes = Array(tree.preorder())
         self.path = path
-        functions = tree.preorder()
-            .compactMap { $0.as(FunctionDeclSyntax.self) }
+        imports = nodes.compactMap { $0.as(ImportDeclSyntax.self) }.map { Import($0, path: path, lines: lines) }
+        types = nodes.compactMap { $0.as(DeclSyntax.self) }.compactMap { TypeDeclaration($0, path: path, lines: lines) }
+        memberBlocks = nodes.compactMap { $0.as(MemberBlockSyntax.self) }
+            .compactMap { MemberBlock($0, path: path, lines: lines) }
+        functions = nodes.compactMap { $0.as(FunctionDeclSyntax.self) }
             .map { FunctionDeclaration($0, path: path, lines: lines) }
         syntax = tree
     }
