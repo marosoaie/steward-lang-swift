@@ -74,7 +74,7 @@ swift test                         # full suite (~25 s); also on Linux
 STEWARD_SWIFT_SKIP_NETWORK_TESTS=1 swift test   # offline subset
 STEWARD_SWIFT_ORACLE=1 swift test --filter SymbolGraphOracle   # builds the corpus
 swift run -c release StewardSwiftBenchmark <directory>          # docs/performance.md
-xcodebuild test -scheme steward-lang-swift -destination platform=macOS
+xcodebuild test -scheme steward-lang-swift-Package -destination platform=macOS
 swiftlint lint --quiet             # must print nothing
 ```
 

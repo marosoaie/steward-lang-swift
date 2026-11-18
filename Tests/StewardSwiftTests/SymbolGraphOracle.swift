@@ -2,8 +2,10 @@ import Foundation
 import StewardSwift
 
 /// The compiler's view of swift-argument-parser's functions: its symbol
-/// graph, at the minimum access level `private`, which
-/// `swift package dump-symbol-graph` writes after building the package.
+/// graph, at the minimum access level `private`, which the compiler writes
+/// while it builds the package. (`swift package dump-symbol-graph` would
+/// do too, but before Swift 6.4 it also extracts the package's test
+/// module, which fails, so the command exits with an error.)
 ///
 /// Building takes a minute, so the tests that read it run only when
 /// `STEWARD_SWIFT_ORACLE=1` is set (CI's macos-tests job sets it).
@@ -42,15 +44,13 @@ enum SymbolGraphOracle {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("steward-lang-swift-oracle-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.copyItem(at: checkout, to: root)
-        let output = try run([
-            "swift", "package", "--package-path", root.path,
-            "dump-symbol-graph", "--minimum-access-level", "private",
-        ])
-        let prefix = "Files written to "
-        guard let line = output.split(separator: "\n").last(where: { $0.hasPrefix(prefix) }) else {
-            throw CorpusError("dump-symbol-graph didn't say where it wrote: \(output.suffix(500))")
-        }
-        let directory = URL(fileURLWithPath: String(line.dropFirst(prefix.count)))
+        let directory = root.appendingPathComponent(".symbol-graphs", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let compilerFlags = [
+            "-emit-symbol-graph", "-emit-symbol-graph-dir", directory.path,
+            "-symbol-graph-minimum-access-level", "private",
+        ]
+        _ = try run(["swift", "build", "--package-path", root.path] + compilerFlags.flatMap { ["-Xswiftc", $0] })
         let rootPath = root.standardizedFileURL.resolvingSymlinksInPath().path
         let functions = try FileManager.default.contentsOfDirectory(atPath: directory.path)
             .filter { $0.hasSuffix(".symbols.json") }

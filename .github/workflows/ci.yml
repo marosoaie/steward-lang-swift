@@ -130,7 +130,7 @@ jobs:
 
       - name: Run tests
         run: >-
-          xcodebuild test -scheme steward-lang-swift -destination platform=macOS
+          xcodebuild test -scheme steward-lang-swift-Package -destination platform=macOS
           -derivedDataPath "$RUNNER_TEMP/xcode" -resultBundlePath "$RUNNER_TEMP/tests.xcresult"
           -quiet
 
