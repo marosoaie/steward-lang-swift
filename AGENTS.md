@@ -14,6 +14,21 @@ product, `StewardSwift` (`Sources/StewardSwift/`), tested in
 `Tests/StewardSwiftTests/`. Other languages may follow in packages of the
 same shape, `steward-lang-<language>`.
 
+A rule is `Rule.swiftSource(_:in:excluding:reporting:limit:reportingSkipsAs:_:)`,
+whose check takes a `SwiftFile` (and, in its other shape, the run's
+`Log`) and returns `Finding`s. It reads each changed file through
+Steward's `Rule.changedFiles`, so `excluding`, `limit` and
+`reportingSkipsAs` mean what they mean there, and keeps the findings
+about what the pull request changed, by `SwiftSourceScope`:
+`changedDeclarations` (the default, for a rule about one declaration),
+`changedTypes` (for order and siblings) or `changedFiles`. The units a
+scope judges by are the declarations the model names and the top-level
+items (`DeclarationIndex`), and a unit counts as changed by
+`changedLines.overlaps(lines) || linesAfterDeletions.overlaps(lines)`.
+For each file the rule logs "<rule>: checking <path>" first, so that the
+log of a run that dies names the rule and the file; a file with syntax
+errors is a skip, through `Finding.skipped`, and the check never sees it.
+
 Rules are syntactic: a type is matched by how it's spelled, not by what
 it resolves to, which would take a build. The model of a file is the
 package's own value types; raw swift-syntax nodes are an escape hatch, not
@@ -24,10 +39,14 @@ ordering rules) and `functions` (`FunctionDeclaration`, with its
 `FunctionSignature`, `Parameter`s and `Attribute`s), all at any depth and
 in every branch of an `#if`; names of types are `TypeName`s and access
 levels `AccessLevel`s. Every model value has a `location` that goes
-straight into a `Finding`'s `at:`. `StewardSwift` re-exports
-`SwiftSyntax`, so a Dangerfile that reaches for raw nodes imports only
-`StewardSwift` (and `Steward`, whose `Location` the model uses). The model
-follows this package's version, and a raw node follows swift-syntax's.
+straight into a `Finding`'s `at:`. `StewardSwift` re-exports `Steward`
+(and with it Steward's own re-exports, `GitDiffKit` and
+`PullRequestHosting`) and `SwiftSyntax`, so a Dangerfile with Swift rules
+imports only `StewardSwift`, even one that reaches for raw nodes;
+`ExportsTests` compiles only if it does. A name that two of those modules
+declare would be ambiguous there: none does today, and moving either
+dependency's bound means checking again. The model follows this
+package's version, and a raw node follows swift-syntax's.
 
 A value that holds a node (`SwiftFile`, `FunctionDeclaration`,
 `TypeDeclaration`, `MemberBlock`) is
@@ -47,8 +66,9 @@ Two, and nothing else without the maintainer's word:
   dependencies, so swift-syntax lives here and never reaches a Dangerfile
   without Swift rules. The requirement is one minor release
   (`.upToNextMinor(from:)`), since a 0.x minor may break the API this
-  package builds against. It is 0.2 until it moves to 0.3, whose public
-  file reads `Rule.swiftSource` needs. A Dangerfile resolves one Steward
+  package builds against: 0.3, whose `Rule.changedFiles`,
+  `ChangedFile` and `Finding.skipped` `Rule.swiftSource` builds on.
+  A Dangerfile resolves one Steward
   for both packages, so each Steward minor release needs a release of
   this package before such a Dangerfile can move to it.
 - **swift-syntax**: `SwiftSyntax` and `SwiftParser`, at a range of
@@ -146,22 +166,38 @@ so `SwiftFile` defends it:
   debug build (it dies past about 1,000). Real trees are under 100.
 - The parse has a deadline that grows with the source (2 s and 50 µs a
   byte). One that runs out leaves its thread running, and no other parse
-  starts until it ends (`ParseGate`).
+  starts until it ends (`ParseGate`). In `Rule.swiftSource` the deadline
+  covers the scan, the parse, the model and the scopes' index, the
+  package's own work on the pull request's input; the rule's check runs
+  after it on the same thread with no limit, as a check in Steward has
+  none (`LargeStack.value`, which resumes the rule's task exactly once).
 - The package's own walks keep their own stack (`PreorderWalk`), and line
   numbers come from the source's line feeds (`SourceLines`), as git counts
   them; swift-syntax's walks and `SourceLocationConverter` recurse.
 
 A refusal is thrown (`SwiftFile.Refusal`), and must fail the rule that
 asked: a skipped file would let a pull request hide from every rule with
-one construct. A source with syntax errors isn't a refusal; it's read, and
-`syntax.hasError` says so.
+one construct. `Rule.swiftSource` makes it a failure whatever the rule's
+`reportingSkipsAs`. A source with syntax errors isn't a refusal; it's
+read, and `syntax.hasError` says so; `Rule.swiftSource` skips it, a
+finding of the rule's skip kind, since its checks would read a damaged
+tree. A file that builds can have syntax errors: code for a later
+compiler inside an inactive `#if compiler(>=…)`.
 
 The robustness tests read real files whole, cut short and mutated, from a
 corpus: this package's own files and swift-argument-parser's, downloaded
 once into `~/Library/Caches/steward-lang-swift-tests/` (on Linux,
 `${XDG_CACHE_HOME:-~/.cache}/steward-lang-swift-tests/`).
 `STEWARD_SWIFT_SKIP_NETWORK_TESTS=1` leaves the download out, and the
-tests that need it.
+tests that need it. The same corpus checks the scopes' index against a
+search of every unit, and a finding at each model value's location
+against a change to its lines.
+
+The scope tests take their diffs from git, a base and a head committed in
+a temporary repository (`TestRepository`, with Steward's `git diff`
+options), and the end-to-end tests run `SwiftRulesFixture`, a Dangerfile
+built beside the tests, as its own process, a dry run in such a
+repository; one of its rules crashes on a file that asks it to.
 
 The oracle is the compiler: `SymbolGraphOracleTests` builds
 swift-argument-parser and reads its symbol graph at minimum access level
