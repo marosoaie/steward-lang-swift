@@ -29,7 +29,9 @@ public struct SwiftFile: Sendable {
     /// Swift: the declarations it can make out are read, and
     /// `syntax.hasError` says whether it had to repair anything.
     public init(source: String, path: String) {
-        self = LargeStack.run { SwiftFile(parsing: source, path: path) }
+        // No time limit yet: what a source that runs out of time gives back
+        // waits on FABLE-Q S2-2, so this waits however long the parse takes.
+        self = LargeStack.run { SwiftFile(parsing: source, path: path) } ?? SwiftFile(parsing: source, path: path)
     }
 
     private init(parsing source: String, path: String) {
