@@ -42,7 +42,9 @@ public struct SwiftFile: Sendable {
     /// says whether it had to repair anything. That isn't a refusal.
     ///
     /// The parse runs on a thread of its own, with a 64 MiB stack, and the
-    /// calling thread waits for it.
+    /// calling thread waits for it. The time limit bounds the wait, not
+    /// the parse: a parse that runs out of time runs on until it ends or
+    /// the process exits, and can still use up stack or memory meanwhile.
     ///
     /// - Throws: `Refusal` when the source nests a shape too deeply for
     ///   the parser, nests past the parser's limit of 256, its tree is

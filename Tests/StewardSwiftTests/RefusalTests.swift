@@ -20,6 +20,10 @@ struct RefusalTests {
             .nestingTooDeep(.conditionalCompilation, line: 513, limit: 512)
         ),
         (
+            nested("/**/#if A\n", "#endif\n", depth: 600, inner: ""),
+            .nestingTooDeep(.conditionalCompilation, line: 513, limit: 512)
+        ),
+        (
             "let x = " + nested("\"\\(", ")\"", depth: 600, inner: "1"),
             .nestingTooDeep(.interpolation, line: 1, limit: 512)
         ),

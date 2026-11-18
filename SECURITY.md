@@ -54,13 +54,19 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
 
 ## What it doesn't protect against
 
-- **The scan is a heuristic, not a lexer.** A source crafted to put it out
-  of step with the parser can get past it. The deadline is the backstop
-  for time, but nothing in the process can catch a stack overflow or an
-  exhausted memory: such a source still ends the run. That fails the
-  check, which is closed, but loses the run's report. The containment for
-  that is parsing in a process of its own, which needs a hook in Steward;
-  it's the next step if the list of hazards above grows.
+- **The scan stops accidents, not an author who means it.** It's a
+  heuristic, not a lexer: one line can put it out of step with the parser,
+  and a second can then crash the run or exhaust its memory. The deadline
+  is the backstop for time, but nothing in the process can catch a stack
+  overflow or an exhausted memory. Such a run fails its check, which is
+  closed, but loses its report, and the summary comment from an earlier
+  push stays as it was. The containment is parsing in a process of its
+  own, which needs a hook in Steward; whether rules that read pull
+  requests' files wait for it is the maintainer's call.
+- **It can refuse honest source**, rarely: 513 comparisons with no `{`,
+  `}`, `;` or assignment between them, or a run of regex literals holding
+  an unescaped `[`. A refusal fails the rule, so please report one as an
+  ordinary bug.
 - **A parse that runs out of time keeps running.** Nothing can stop the
   thread, so it holds a core until it ends or the run exits, and no other
   file is parsed meanwhile: each is refused.
