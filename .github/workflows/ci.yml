@@ -92,6 +92,13 @@ jobs:
       - name: Run tests
         run: swift test --skip-build
 
+      # The model against the compiler: swift-argument-parser's symbol
+      # graph, which this builds (Tests/StewardSwiftTests/SymbolGraphOracle.swift).
+      - name: Symbol graph oracle
+        env:
+          STEWARD_SWIFT_ORACLE: "1"
+        run: swift test --skip-build --filter SymbolGraphOracle
+
       # Annotates every violation, and fails the job on any.
       - name: SwiftLint
         if: ${{ !cancelled() }}
@@ -123,7 +130,7 @@ jobs:
 
       - name: Run tests
         run: >-
-          xcodebuild test -scheme steward-lang-swift -destination platform=macOS
+          xcodebuild test -scheme steward-lang-swift-Package -destination platform=macOS
           -derivedDataPath "$RUNNER_TEMP/xcode" -resultBundlePath "$RUNNER_TEMP/tests.xcresult"
           -quiet
 
