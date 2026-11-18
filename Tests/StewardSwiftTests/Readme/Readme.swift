@@ -59,10 +59,10 @@ struct Readme {
             let names = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
             return names.filter { $0.hasSuffix(".swift") }.sorted().map { url.appendingPathComponent($0) }
         }
-        let regions = try files.flatMap { file in
-            regions(in: try String(contentsOf: file, encoding: .utf8))
+        let found = try files.flatMap { file in
+            Self.regions(in: try String(contentsOf: file, encoding: .utf8))
         }
-        return Dictionary(regions) { first, _ in first }
+        return Dictionary(found) { first, _ in first }
     }
 
     private static func blocks(in lines: [String]) -> [Block] {
