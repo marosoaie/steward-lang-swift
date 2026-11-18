@@ -35,8 +35,18 @@ public struct MemberBlock: Sendable {
     public var owner: Owner
 
     /// The owner's access level: for an extension, the one it writes out,
-    /// or `internal`.
+    /// or `internal`. A `private extension` is `private` here, while its
+    /// members default to `fileprivate`, as Swift gives them.
     public var access: AccessLevel
+
+    /// The owner's inherited types, as spelled: a type's, or the
+    /// conformances an extension adds, such as `@unchecked Sendable` in
+    /// `extension Cache: @unchecked Sendable {}`.
+    public var inheritedTypes: [TypeName]
+
+    /// The owner's attributes, in order, with those in each branch of an
+    /// `#if`: a type's, or an extension's.
+    public var attributes: [Attribute]
 
     /// The members, in source order, with those in each branch of an `#if`
     /// marked as conditional.
@@ -85,6 +95,8 @@ extension MemberBlock {
             return nil
         }
         access = AccessLevel(of: parent, modifiers: group.modifiers)
+        inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
+        attributes = Attribute.all(in: group.attributes, path: path, lines: lines)
         functions = Member.declarations(in: block)
             .compactMap { $0.declaration.as(FunctionDeclSyntax.self) }
             .map { FunctionDeclaration($0, path: path, lines: lines) }

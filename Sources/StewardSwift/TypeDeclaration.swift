@@ -32,6 +32,10 @@ public struct TypeDeclaration: Sendable {
     /// The access level, written out or not.
     public var access: AccessLevel
 
+    /// Whether the type is `final`. Other modifiers, such as `indirect`,
+    /// `distributed` and `nonisolated`, aren't read; `syntax` has them.
+    public var isFinal: Bool
+
     /// The types after the colon, in order and as spelled: superclass,
     /// protocols, a raw value type, `@unchecked Sendable`.
     public var inheritedTypes: [TypeName]
@@ -76,6 +80,7 @@ extension TypeDeclaration {
         self.kind = kind
         name = named.name.unescapedText
         access = AccessLevel(of: declaration, modifiers: group.modifiers)
+        isFinal = group.modifiers.contains { $0.name.tokenKind == .keyword(.final) }
         inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
         attributes = Attribute.all(in: group.attributes, path: path, lines: lines)
         members = Member.declarations(in: group.memberBlock).flatMap { member in
