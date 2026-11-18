@@ -167,8 +167,11 @@ The oracle is the compiler: `SymbolGraphOracleTests` builds
 swift-argument-parser and reads its symbol graph at minimum access level
 `private`, and every function it lists at a line of the source (345, each
 once: the copies it makes of protocol-extension defaults are left out) must be
-read at the same line with the same name, `async`, `throws`, access level
-and `static`. It needs a build, so it runs only with
+read at the same line with the same name and argument labels, `async`,
+`throws`, access level and `static`. It doesn't exercise local functions,
+which the graph doesn't list, nor access levels that come from an
+extension's modifier, which the corpus never relies on: unit tests alone
+hold those, and only 9 of its functions are `async`. It needs a build, so it runs only with
 `STEWARD_SWIFT_ORACLE=1`; CI's macos-tests job sets it. The benchmark
 (`Benchmarks/StewardSwiftBenchmark`, not a product) times the read on a
 directory's largest files; [docs/performance.md](docs/performance.md)

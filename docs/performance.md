@@ -24,7 +24,9 @@ Then it reads every file in the directory once.
 ## Measured
 
 Apple M4 (10 cores), macOS 26, Swift 6.4.2 (Xcode 27.2), swift-syntax
-604.0.0, at steward-lang-swift `8503275`, on 2026-11-18.
+604.0.0, on 2026-11-18, at steward-lang-swift `8503275`: a merge on the S5
+branch whose `SwiftFile` is S2's `62822cc` with S3's `271f07e`, so it stays
+reachable only if the pull requests aren't squashed.
 
 ### Release
 
@@ -88,9 +90,12 @@ All 321 swift-syntax files: 31.8 s. All 165 swift-argument-parser files:
   1.2 s, against its 13.9 s), so the margin is about ten times in a debug
   build on this machine, less on a slower CI runner, and several hundred
   times in a release build.
-- **The overhead.** `SwiftFile` takes about three times the bare parse: the
-  scan reads the bytes twice, the tree is walked to check its depth and
-  again to read the model, and the parse hops to a thread of its own.
+- **The overhead.** `SwiftFile` takes 2.6 to 3.7 times the bare parse in a
+  release build, and 2.0 to 2.4 times in a debug one, where the parse
+  itself is a larger share: the scan reads the bytes twice, the tree is
+  walked to check its depth and again to read the model, and the parse
+  hops to a thread of its own.
 - **Debug or release.** A Dangerfile built in release reads Swift about 40
-  times faster (`SwiftFile`'s whole read; the bare parse, 56 to 71 times). Whether steward-action should build one in release is a
-  question for steward-action and the maintainer, not settled here.
+  times faster (`SwiftFile`'s whole read; the bare parse, 56 to 71 times).
+  Whether steward-action should build one in release is a question for
+  steward-action and the maintainer, not settled here.

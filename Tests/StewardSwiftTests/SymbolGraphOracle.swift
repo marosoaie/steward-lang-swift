@@ -20,6 +20,8 @@ enum SymbolGraphOracle {
         var path: String
         var line: Int
         var name: String
+        /// The name with its argument labels, such as `parse(_:into:)`.
+        var title: String
         var access: AccessLevel.Level?
         var isAsync: Bool
         var isThrowing: Bool
@@ -64,11 +66,7 @@ enum SymbolGraphOracle {
                 let file = try JSONDecoder().decode(GraphFile.self, from: data)
                 return file.symbols.compactMap { $0.function(under: rootPath) }
             }
-        // A module's graph and its extensions' graphs can list one function
-        // twice; keep the first of each.
-        let functions = Dictionary(grouping: listed) { "\($0.path):\($0.line):\($0.name)" }
-            .values.compactMap(\.first)
-            .sorted { ($0.path, $0.line, $0.name) < ($1.path, $1.line, $1.name) }
+        let functions = listed.sorted { ($0.path, $0.line, $0.title) < ($1.path, $1.line, $1.title) }
         // The copy's sources are the checkout's.
         return Graph(root: checkout, functions: functions)
     }
@@ -146,6 +144,7 @@ private struct GraphSymbol: Decodable {
             // The graph counts lines from 0.
             line: location.position.line + 1,
             name: String(names.title.prefix { $0 != "(" }),
+            title: names.title,
             access: AccessLevel.Level.allCases.first { $0.description == accessLevel },
             isAsync: keywords.contains("async"),
             isThrowing: keywords.contains("throws") || keywords.contains("rethrows"),

@@ -16,6 +16,11 @@ guard arguments.count > 1 else {
     exit(2)
 }
 let root = URL(fileURLWithPath: arguments[1]).standardizedFileURL
+// A mistyped path would otherwise read as an empty directory.
+guard (try? root.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else {
+    print("no such directory: \(root.path)")
+    exit(1)
+}
 // At least one run, and no fewer than no files: a range or a prefix with a
 // negative bound would trap.
 let largest = max(0, arguments.count > 2 ? Int(arguments[2]) ?? 10 : 10)
