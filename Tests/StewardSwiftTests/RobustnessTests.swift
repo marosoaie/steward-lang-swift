@@ -87,6 +87,7 @@ struct RobustnessTests {
         #expect(elapsed < parseBudget, "\(what) took \(elapsed)")
         if case .success(let file) = outcome {
             Invariants.check(file, source: source)
+            Invariants.checkDeclarations(file, source: source)
         }
         return outcome ?? .failure(.earlierParseStillRunning)
     }
