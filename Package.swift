@@ -43,6 +43,17 @@ let package = Package(
             ],
             swiftSettings: swiftSettings
         ),
+        // Parse times on a corpus's largest files (docs/performance.md).
+        // Not a product, so packages that depend on this one never build it.
+        .executableTarget(
+            name: "StewardSwiftBenchmark",
+            dependencies: [
+                "StewardSwift",
+                .product(name: "SwiftParser", package: "swift-syntax"),
+            ],
+            path: "Benchmarks/StewardSwiftBenchmark",
+            swiftSettings: swiftSettings
+        ),
         .testTarget(
             name: "StewardSwiftTests",
             dependencies: [
