@@ -233,9 +233,11 @@ struct ScopedFindings: Sendable {
 
     func keeps(_ finding: Finding) -> Bool {
         // A scope narrows by line: a finding with none, or about another
-        // file, is about what no line of this file holds.
-        guard scope != .changedFiles, let location = finding.location, location.path == path,
-              let line = location.line
+        // file, is about what no line of this file holds. Paths compare by
+        // their bytes, as git tells them apart: `==` takes a name's
+        // precomposed and decomposed spellings for one.
+        guard scope != .changedFiles, let location = finding.location,
+              location.path.utf8.elementsEqual(path.utf8), let line = location.line
         else { return true }
         // A line the file doesn't have, a rule's bug, is a loose line, and
         // never an index.

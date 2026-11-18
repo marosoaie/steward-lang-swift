@@ -90,6 +90,26 @@ struct DeclarationIndexTests {
         }
     }
 
+    @Test("a finding at another spelling of the file's path is another file's, as git tells paths apart by bytes")
+    func pathBytes() throws {
+        let precomposed = "Sources/Caf\u{E9}.swift"
+        let decomposed = "Sources/Cafe\u{301}.swift"
+        #expect(precomposed == decomposed)
+        let file = try SwiftFile(source: "func a() {}\nfunc b() {}\n", path: precomposed)
+        let scoped = ScopedFindings(
+            file: file,
+            changed: ChangedFile(
+                path: precomposed,
+                contents: [],
+                changedLines: LineRangeSet([1...1]),
+                linesAfterDeletions: LineRangeSet()
+            ),
+            scope: .changedDeclarations
+        )
+        #expect(!scoped.keeps(.message("b", at: Location(path: precomposed, line: 2))))
+        #expect(scoped.keeps(.message("b", at: Location(path: decomposed, line: 2))))
+    }
+
     @Test("a file of 20,000 one-line members, each with a finding, is scoped in bounded time")
     func manyUnits() throws {
         let members = (0..<20_000).map { "    var v\($0) = \($0)" }.joined(separator: "\n")
