@@ -5,8 +5,9 @@ import SwiftSyntax
 ///
 /// Rules match types by spelling, not by what they resolve to: `Int?` and
 /// `Optional<Int>` are different names, and so are `Swift.Int` and `Int`.
-/// Two names are equal when they're spelled the same apart from whitespace,
-/// so `[String:Int]` in the source equals the literal `"[String: Int]"`, and
+/// Two names are equal when they're spelled the same apart from whitespace
+/// that doesn't separate two words, so `[String:Int]` in the source equals
+/// the literal `"[String: Int]"`, but `any Error` doesn't equal `anyError`;
 /// comments inside a type don't count:
 ///
 /// ```swift
@@ -32,18 +33,40 @@ public struct TypeName: Sendable, Hashable, ExpressibleByStringLiteral, CustomSt
         spelling
     }
 
-    /// Whether the two names are spelled the same apart from whitespace.
+    /// Whether the two names are spelled the same apart from whitespace
+    /// that doesn't separate two words.
     public static func == (lhs: TypeName, rhs: TypeName) -> Bool {
-        lhs.comparableSpelling.elementsEqual(rhs.comparableSpelling)
+        lhs.comparableSpelling == rhs.comparableSpelling
     }
 
-    /// Hashes the spelling without its whitespace, as `==` compares it.
+    /// Hashes the spelling as `==` compares it.
     public func hash(into hasher: inout Hasher) {
-        comparableSpelling.forEach { hasher.combine($0) }
+        hasher.combine(comparableSpelling)
     }
 
-    private var comparableSpelling: some Sequence<Unicode.Scalar> {
-        spelling.unicodeScalars.lazy.filter { !$0.properties.isWhitespace }
+    /// The spelling with each run of whitespace dropped, unless it
+    /// separates two words (`any Error`, `inout Int`), where it's one space.
+    private var comparableSpelling: String {
+        let scalars = Array(spelling.unicodeScalars)
+        let kept = scalars.indices.compactMap { index -> Unicode.Scalar? in
+            let scalar = scalars[index]
+            guard scalar.properties.isWhitespace else { return scalar }
+            // The run's first space stands for the run, between two words;
+            // the rest of the run looks no further, so this stays linear.
+            guard index > 0, !scalars[index - 1].properties.isWhitespace else { return nil }
+            let after = scalars[index...].first { !$0.properties.isWhitespace }
+            return scalars[index - 1].isWordScalar && (after?.isWordScalar ?? false) ? " " : nil
+        }
+        var result = String.UnicodeScalarView()
+        result.append(contentsOf: kept)
+        return String(result)
+    }
+}
+
+extension Unicode.Scalar {
+    /// Whether the scalar can be part of an identifier or a keyword.
+    fileprivate var isWordScalar: Bool {
+        properties.isAlphabetic || properties.numericType != nil || self == "_" || self == "$"
     }
 }
 

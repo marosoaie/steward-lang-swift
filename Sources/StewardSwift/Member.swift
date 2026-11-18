@@ -34,8 +34,9 @@ public struct Member: Sendable, Hashable {
     /// macro's name, without `#`, for a macro expansion.
     public var name: String
 
-    /// The access level, written out or not. An enum's cases have the
-    /// enum's.
+    /// The access level, written out or not. An enum's cases and a
+    /// deinitializer, which can't write one out, have their type's, but at
+    /// least `internal`, as Swift gives them.
     public var access: AccessLevel
 
     /// Whether the member is `static` or `class`.
@@ -101,8 +102,8 @@ extension Member {
         let isStatic = modifiers.contains {
             $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
         }
-        let access = declaration.is(EnumCaseDeclSyntax.self)
-            ? AccessLevel(caseIn: owner)
+        let access = declaration.is(EnumCaseDeclSyntax.self) || declaration.is(DeinitializerDeclSyntax.self)
+            ? AccessLevel(implicitMemberOf: owner)
             : AccessLevel(of: declaration, modifiers: modifiers)
         let span = lines.lines(of: declaration)
         return names(of: declaration).map { declared in

@@ -42,6 +42,9 @@ extension SwiftFile {
     public enum Refusal: Error, Sendable, Equatable, CustomStringConvertible {
         /// `shape` goes past `limit` at `line`, found before parsing.
         case nestingTooDeep(NestingShape, line: Int, limit: Int)
+        /// The source nests past the parser's limit, after which it
+        /// leaves the rest of the file unread.
+        case nestedPastParserLimit(limit: Int)
         /// The syntax tree is `depth` levels deep, past `limit`.
         case syntaxTreeTooDeep(depth: Int, limit: Int)
         /// The parse didn't finish within `limit`.
@@ -62,6 +65,11 @@ extension SwiftFile {
                 """
                 Line \(line) goes past \(limit) \(shape), more than the Swift parser reads safely. \
                 Split the construct.
+                """
+            case .nestedPastParserLimit(let limit):
+                """
+                The file nests brackets, braces or declarations more than \(limit) levels deep, \
+                past what the Swift parser reads, so the rest of it would be lost. Split the nesting.
                 """
             case .syntaxTreeTooDeep(let depth, let limit):
                 """
