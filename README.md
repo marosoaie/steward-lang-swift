@@ -307,14 +307,17 @@ static let finalClasses = Rule.swiftSource("Final classes") { file in
 }
 ```
 
-A public struct has a public initializer. It reads the type's own
-members, so an initializer in an extension doesn't count:
+A public struct has a public initializer. Whether a declaration is
+public can change with the extension or type around it (`extension Feed`
+becoming `public extension Feed`), so the public-API rules want
+`.changedTypes`. It reads the type's own members, so an initializer in an
+extension doesn't count:
 
 <!-- README: public-initializers -->
 ```swift
 /// A public struct has a public initializer, since the memberwise one is
 /// internal.
-static let publicInitializers = Rule.swiftSource("Public initializers") { file in
+static let publicInitializers = Rule.swiftSource("Public initializers", reporting: .changedTypes) { file in
     file.types
         .filter { $0.kind == .struct && $0.access.level >= .public }
         .filter { type in !type.members.contains { $0.kind == .initializer && $0.access.level >= .public } }
@@ -323,12 +326,15 @@ static let publicInitializers = Rule.swiftSource("Public initializers") { file i
 ```
 
 No `@testable import` outside tests, with the tests left out by the
-rule's `excluding:` pattern:
+rule's `excluding:` pattern. It's about where the file is, which a rename
+changes without changing a line, so it wants `.changedFiles`:
 
 <!-- README: testable-imports -->
 ```swift
 /// No `@testable import` outside `Tests/`.
-static let testableImports = Rule.swiftSource("Testable imports", excluding: "Tests/**") { file in
+static let testableImports = Rule.swiftSource(
+    "Testable imports", excluding: "Tests/**", reporting: .changedFiles
+) { file in
     file.imports
         .filter { $0.attributes.contains { $0.name == "testable" } }
         .map { .failure("\(Markdown.codeSpan("@testable import \($0.module)")) is for tests.", at: $0.location) }
@@ -350,14 +356,15 @@ static let flagParameters = Rule.swiftSource("Flag parameters") { file in
 ```
 
 A public function has a doc comment, which the model doesn't hold: the
-function's `syntax` does, in the trivia before its first token.
+function's `syntax` does, in the trivia before its first token. Like the
+public initializers, it wants `.changedTypes`.
 `StewardSwift` re-exports SwiftSyntax, so its types need no import:
 
 <!-- README: documented-public-api -->
 ```swift
 /// A public function has a doc comment, read from its syntax node's
 /// leading trivia: SwiftSyntax comes with the import.
-static let documentedPublicAPI = Rule.swiftSource("Documented public API") { file in
+static let documentedPublicAPI = Rule.swiftSource("Documented public API", reporting: .changedTypes) { file in
     file.functions
         .filter { $0.access.level >= .public }
         .filter { function in

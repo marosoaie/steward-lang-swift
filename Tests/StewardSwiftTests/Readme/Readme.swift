@@ -57,7 +57,9 @@ struct Readme {
         let files = exampleDirectories.flatMap { directory in
             let url = root.appendingPathComponent(directory)
             let names = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
-            return names.filter { $0.hasSuffix(".swift") }.sorted().map { url.appendingPathComponent($0) }
+            // Hidden files aren't sources, as SwiftPM has it.
+            return names.filter { $0.hasSuffix(".swift") && !$0.hasPrefix(".") }.sorted()
+                .map { url.appendingPathComponent($0) }
         }
         let found = try files.flatMap { file in
             Self.regions(in: try String(contentsOf: file, encoding: .utf8))
