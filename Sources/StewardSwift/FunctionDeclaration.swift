@@ -42,6 +42,11 @@ public struct FunctionDeclaration: Sendable {
     /// `#if` among them.
     public var attributes: [Attribute]
 
+    /// The modifiers, in order, each spelled with nothing inside its
+    /// parentheses: `override`, `mutating`, `nonisolated(unsafe)`.
+    /// `access` and `isStatic` are typed views of some of them.
+    public var modifiers: [String]
+
     /// The doc comment's text without its markers, read as the compiler
     /// reads it, or nil when there's none. It's the last run of `///` and
     /// `/** */` comments before the declaration: a blank line or a plain
@@ -97,6 +102,7 @@ extension FunctionDeclaration {
         returnType = signature.returnType
         parameters = function.signature.parameterClause.parameters.map { Parameter($0, path: path, lines: lines) }
         attributes = Attribute.all(in: function.attributes, path: path, lines: lines)
+        modifiers = function.modifiers.map(\.normalizedSpelling)
         documentation = Documentation.text(of: function, lines: lines)
         location = Location(path: path, line: lines.line(of: function.name))
         self.lines = lines.lines(of: function)

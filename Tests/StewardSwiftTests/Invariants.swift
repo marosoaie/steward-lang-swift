@@ -78,7 +78,8 @@ enum Invariants {
             #expect(
                 block.functions.map(\.name) == functionMembers.map(\.name)
                     && block.functions.map(\.attributes) == functionMembers.map(\.attributes)
-                    && block.functions.map(\.documentation) == functionMembers.map(\.documentation),
+                    && block.functions.map(\.documentation) == functionMembers.map(\.documentation)
+                    && block.functions.map(\.modifiers) == functionMembers.map(\.modifiers),
                 "\(block.owner)'s functions and function members disagree",
                 sourceLocation: sourceLocation
             )
