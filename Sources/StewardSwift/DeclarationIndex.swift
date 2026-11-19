@@ -72,10 +72,13 @@ struct DeclarationIndex: Sendable {
     /// a declaration's lines up to its name and its `{` are its own, so a
     /// member that starts on its type's `{` line, or a local function on
     /// a property's, doesn't take the line from it.
+    ///
+    /// It looks no further than the braces that hold the line, whose line
+    /// it is, so the owner is inside the type or extension that
+    /// `container(of:line:)` finds.
     func owner(of unit: Int, line: Int) -> Int {
-        sequence(first: unit) { units[$0].parent }.dropFirst()
-            .prefix { units[$0].header.contains(line) }
-            .reduce(unit) { $1 }
+        Array(sequence(first: unit) { units[$0].parent }.prefix { units[$0].body?.contains(line) != true }.dropFirst())
+            .last { units[$0].header.contains(line) } ?? unit
     }
 
     /// The units other than `unit`, the innermost around `line`, that hold

@@ -100,6 +100,7 @@ struct DeclarationIndexTests {
             ("struct B<T>\n    where T: Equatable { var x = 1\n    var y = 2\n}\n", 1),
             ("var a = 0,\n    b = { func inner() {}\n        return 0\n    }()\n", 2),
             ("let (a,\n     b) = ({ func inner() {}\n    return 0\n}(), 1)\n", 2),
+            ("var a = { func helper() {\nfunc inner() {} }; return 0 }(), b =\n    1 +\n    2\n", 2),
         ]
     )
     func header(source: String, line: Int) throws {
@@ -139,29 +140,6 @@ struct DeclarationIndexTests {
         #expect(file.functions.map(\.location.line) == [2, 2, 3])
         #expect(file.functions.map { scoped.keeps(.message($0.name, at: $0.location)) } == [true, true, false])
         #expect(index.sharing(try #require(index.innermost(containing: 2)), line: 2).count == 1)
-    }
-
-    @Test("items under ninety-five nested #if blocks are indexed about as fast as the same items under none")
-    func deepConditionalCompilation() throws {
-        // A gate and a limit of the test's own: under a loaded run's other
-        // tests, this read can outlast its deadline, and a runaway on the
-        // shared gate would refuse every later read in the process.
-        let read = { (depth: Int) throws -> SwiftFile in
-            let items = String(repeating: "f()\n", count: 20_000)
-            let source = String(repeating: "#if A\n", count: depth) + items
-                + String(repeating: "#endif\n", count: depth)
-            return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
-        }
-        let (flat, deep) = (try read(0), try read(95))
-        // The faster of three, each way, to see past a loaded machine. The
-        // walk this replaced took about six times as long under 95 `#if`s.
-        let clock = ContinuousClock()
-        let time = { (file: SwiftFile) in
-            (0..<3).map { _ in clock.measure { _ = DeclarationIndex(file: file) } }.min() ?? .zero
-        }
-        #expect(DeclarationIndex(file: deep).units.count == 20_000)
-        let (flatTime, deepTime) = (time(flat), time(deep))
-        #expect(deepTime < flatTime * 2 + .milliseconds(100), "\(deepTime) under 95 #if, \(flatTime) under none")
     }
 
     @Test("a finding at another spelling of the file's path is another file's, as git tells paths apart by bytes")
@@ -269,5 +247,53 @@ struct DeclarationIndexTests {
                 #expect(!keeps(lines.upperBound + 1...lines.upperBound + 1), "\(what): the line after it changed")
             }
         }
+    }
+}
+
+/// The index's cost on dense and deeply nested files.
+extension DeclarationIndexTests {
+    @Test("thousands of declarations on one line, each with a finding, are scoped in bounded time")
+    func manyOnOneLine() throws {
+        let source = (0..<20_000).map { "var v\($0) = \($0)" }.joined(separator: "; ") + "\n"
+        let file = try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
+        let scoped = ScopedFindings(
+            path: file.path,
+            scope: .changedDeclarations,
+            changedLines: LineRangeSet(),
+            linesAfterDeletions: LineRangeSet(),
+            index: DeclarationIndex(file: file),
+            lineCount: file.sourceLines.count
+        )
+        let findings = (0..<20_000).map { Finding.message("v\($0)", at: Location(path: file.path, line: 1)) }
+        let clock = ContinuousClock()
+        var kept: [Finding] = []
+        let elapsed = clock.measure { kept = scoped.kept(findings) }
+        #expect(kept.isEmpty)
+        // Judged once for the line: a judgment for each finding would walk
+        // 20,000 siblings 20,000 times.
+        #expect(elapsed < .seconds(2), "took \(elapsed)")
+    }
+
+    @Test("items under ninety-five nested #if blocks are indexed about as fast as the same items under none")
+    func deepConditionalCompilation() throws {
+        // A gate and a limit of the test's own: under a loaded run's other
+        // tests, this read can outlast its deadline, and a runaway on the
+        // shared gate would refuse every later read in the process.
+        let read = { (depth: Int) throws -> SwiftFile in
+            let items = String(repeating: "f()\n", count: 20_000)
+            let source = String(repeating: "#if A\n", count: depth) + items
+                + String(repeating: "#endif\n", count: depth)
+            return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
+        }
+        let (flat, deep) = (try read(0), try read(95))
+        // The faster of three, each way, to see past a loaded machine. The
+        // walk this replaced took about six times as long under 95 `#if`s.
+        let clock = ContinuousClock()
+        let time = { (file: SwiftFile) in
+            (0..<3).map { _ in clock.measure { _ = DeclarationIndex(file: file) } }.min() ?? .zero
+        }
+        #expect(DeclarationIndex(file: deep).units.count == 20_000)
+        let (flatTime, deepTime) = (time(flat), time(deep))
+        #expect(deepTime < flatTime * 2 + .milliseconds(100), "\(deepTime) under 95 #if, \(flatTime) under none")
     }
 }
