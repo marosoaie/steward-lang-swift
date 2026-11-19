@@ -1,0 +1,108 @@
+name: Release
+run-name: Release v${{ inputs.version }}
+
+# Run by hand, from main, with the version to release: the workflow tags
+# the commit it runs on `v<version>` and publishes a release there. A
+# release is immutable once published (its tag can't move or be deleted,
+# nor its name be reused); its title and notes can still be edited.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, MAJOR.MINOR.PATCH without the v (0.2.0 is tagged v0.2.0)"
+        required: true
+        type: string
+      notes:
+        description: "Release notes in Markdown; left empty, GitHub generates them from the merged pull requests"
+        required: false
+        type: string
+        default: ""
+
+# No permissions but what each job asks for.
+permissions: {}
+
+# One release at a time; a second waits for the first instead of racing it
+# to the same tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# bash with pipefail, so that a failed `git ls-remote` fails the step
+# rather than handing the version check an empty list of tags.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # The checks and the tests, with a read-only token: the tests build and
+  # run the newest dependencies in range, and nothing they run should hold
+  # a token that can write. No cache is restored, so what's released is
+  # built from nothing but main and the dependencies' releases.
+  test:
+    name: test
+    runs-on: macos-26
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      # A release tags what main holds; a dispatch can choose any branch.
+      - name: Release only from main
+        run: |
+          [[ "$GITHUB_REF" == refs/heads/main ]] || { echo "Releases run from main, not $GITHUB_REF"; exit 1; }
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # MAJOR.MINOR.PATCH, tagged in neither form (0.1.0 was tagged without
+      # the v), and greater than every version tagged in either.
+      - name: Check the version
+        run: git ls-remote --tags --refs origin | sed 's|.*refs/tags/||' | .github/scripts/check-release-version.sh "$VERSION"
+
+      - name: Select newest Xcode (Swift 6.2+ required)
+        run: |
+          sudo xcode-select -s "$(printf '%s\n' /Applications/Xcode*.app | sort -V | tail -1)"
+          swift --version
+
+      - name: Run tests
+        run: swift test
+
+  # Tags and publishes the commit the tests ran on. The only job with a
+  # token that can write, and it builds nothing: the version check is all
+  # it runs from the checkout.
+  release:
+    name: release
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Again, just before the tag is made: a tag can have been pushed
+      # while the tests ran.
+      - name: Check the version
+        run: git ls-remote --tags --refs origin | sed 's|.*refs/tags/||' | .github/scripts/check-release-version.sh "$VERSION"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          if [[ -n "$NOTES" ]]; then
+            notes=(--notes "$NOTES")
+          else
+            notes=(--generate-notes)
+          fi
+          gh release create "v$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            "${notes[@]}"

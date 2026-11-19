@@ -133,9 +133,10 @@ out of `/src` first so the two `.build` folders don't mix). GitHub's own
 actions are used at their major version tags, such as
 `actions/checkout@v7`, which move with each release; an action still at
 0.x, where a minor release may break, is pinned to an exact tag or a SHA:
-steward-action at `v0.1.1`. The workflow token is read-only, but for
+steward-action at `v0.1.1`. CI's token is read-only, but for
 `macos-tests`, whose Steward step posts the summary comment
-(`pull-requests: write`).
+(`pull-requests: write`); the only other token that can write is the
+release workflow's (below).
 
 `Dangerfile/` is this repository's own pull request checks: a package of
 its own, like a user's, but depending on the checkout it sits in
@@ -268,8 +269,20 @@ records its numbers. Benchmark in a release build only.
   the first such material creates.
 - Releases are semver git tags, immutable once published, and 0.x for
   now, so a minor release may break API; users depend on one minor
-  release with `.upToNextMinor(from:)`. They are cut by hand with
-  `gh release create`, as git-diff-parser's are: a library has no binary
-  to package, so there is no release workflow. The maintainer drives
-  version numbers and tags releases; never tag unprompted. Tags are
-  `vX.Y.Z`, as swift-steward's are; `v0.1.0` is the first.
+  release with `.upToNextMinor(from:)`. The maintainer drives version
+  numbers and releases; never tag or release unprompted.
+- A release is made by the Release workflow
+  (`.github/workflows/release.yml`), run by hand from `main` with the
+  version, `MAJOR.MINOR.PATCH` without the `v`, and optional notes,
+  which GitHub generates when none are given:
+  `gh workflow run release.yml --ref main -f version=0.2.0 -F notes=@notes.md`.
+  It refuses a version that's already tagged, or isn't greater than
+  every version tagged so far, with or without the `v`
+  (`.github/scripts/check-release-version.sh`); runs the tests, with a
+  read-only token; and then, in a job of its own that builds nothing
+  and alone can write (`contents: write`), tags the commit `vX.Y.Z`, as
+  swift-steward's are, and publishes the release. `0.1.0`, the first
+  release, is the one tag without the `v`, made by hand before the
+  workflow existed; being immutable, it stays, and SwiftPM reads both
+  forms. A published release's tag can't be moved or deleted, nor its
+  name used again, but its title and notes can still be edited.
