@@ -160,7 +160,7 @@ A string literal is one, so `returnType == "LoadResult"` reads as it says.
 
 | Property | What it holds |
 |---|---|
-| `spelling` | The spelling without comments, each run of whitespace between tokens one space. |
+| `spelling` | The spelling without comments, each run of whitespace between tokens one space, and none around a qualified name's dots. |
 
 ## `AccessLevel`
 

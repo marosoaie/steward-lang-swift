@@ -36,12 +36,16 @@ extension SyntaxProtocol {
     }
 
     /// The tokens' text as the source writes it, without comments, and
-    /// with one space wherever trivia separates two tokens. Escaped
-    /// identifiers lose their backticks.
+    /// with one space wherever trivia separates two tokens, but none around
+    /// the dot of a qualified name: `Combine .Published` is spelled
+    /// `Combine.Published`. Escaped identifiers lose their backticks.
     var spelling: String {
         let tokens = preorder().compactMap { $0.as(TokenSyntax.self) }
         let pieces = zip([nil] + tokens.map(Optional.some), tokens).map { previous, token in
-            let separated = previous.map { !$0.trailingTrivia.isEmpty || !token.leadingTrivia.isEmpty } ?? false
+            let separated = previous.map {
+                (!$0.trailingTrivia.isEmpty || !token.leadingTrivia.isEmpty)
+                    && !$0.isQualifyingDot && !token.isQualifyingDot
+            } ?? false
             return (separated ? " " : "") + token.unescapedText
         }
         return pieces.joined()
@@ -52,6 +56,16 @@ extension TokenSyntax {
     /// The token's text, without backticks if it's an escaped identifier.
     var unescapedText: String {
         identifier?.name ?? text
+    }
+
+    /// Whether the token is the dot of a qualified name: a member type's,
+    /// such as `Combine.Published`, a metatype's, such as `Int.Type`, or an
+    /// import path's, such as `Foundation.Data`. A member access's dot, as
+    /// in `.long`, isn't one.
+    var isQualifyingDot: Bool {
+        parent?.as(MemberTypeSyntax.self)?.period.id == id
+            || parent?.as(MetatypeTypeSyntax.self)?.period.id == id
+            || parent?.as(ImportPathComponentSyntax.self)?.trailingPeriod?.id == id
     }
 }
 

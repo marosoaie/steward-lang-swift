@@ -14,9 +14,10 @@ public struct Import: Sendable, Hashable {
     /// `import GitDiffKit.Submodule` alike.
     public var module: String
 
-    /// The whole path as written: `GitDiffKit.ChangedFile` for
-    /// `import struct GitDiffKit.ChangedFile`, `UIKit.UIGestureRecognizerSubclass`
-    /// for a submodule.
+    /// The whole path, with nothing around its dots: `GitDiffKit.ChangedFile`
+    /// for `import struct GitDiffKit.ChangedFile`, or for
+    /// `import struct GitDiffKit . ChangedFile`, and
+    /// `UIKit.UIGestureRecognizerSubclass` for a submodule.
     public var path: String
 
     /// The kind of declaration a scoped import names, such as `struct` in
