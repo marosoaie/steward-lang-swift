@@ -102,7 +102,8 @@ struct RecipesTests {
                 -    public init() {}
                 +    init() {}
                  }
-                """ + "\n",
+
+                """,
             files: [path: head]
         )
         #expect(base != head)
