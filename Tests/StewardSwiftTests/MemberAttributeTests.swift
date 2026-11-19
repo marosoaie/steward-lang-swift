@@ -37,8 +37,8 @@ struct MemberAttributeTests {
     func sharedAttributes() throws {
         let blocks = try Sample.file("""
             final class Feed {
-                @Published var a, b: Int
-                @Published var (c, d) = (1, 2)
+                @MainActor var a, b: Int
+                @MainActor var (c, d) = (1, 2)
                 var e = 0
             }
             enum State {
@@ -50,7 +50,7 @@ struct MemberAttributeTests {
             """).memberBlocks
         let attributes = blocks.map { block in block.members.map { "\($0.name) \($0.attributes.map(\.name))" } }
         #expect(attributes == [
-            [#"a ["Published"]"#, #"b ["Published"]"#, #"c ["Published"]"#, #"d ["Published"]"#, "e []"],
+            [#"a ["MainActor"]"#, #"b ["MainActor"]"#, #"c ["MainActor"]"#, #"d ["MainActor"]"#, "e []"],
             [#"idle ["available"]"#, #"loading ["available"]"#],
             [#"shared ["MainActor"]"#, #"empty ["MainActor"]"#],
         ])

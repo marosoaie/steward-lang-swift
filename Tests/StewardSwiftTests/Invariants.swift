@@ -58,6 +58,7 @@ enum Invariants {
             )
         }
         file.memberBlocks.forEach { block in
+            let functionMembers = block.members.filter { $0.kind == .function }
             #expect(
                 block.members.allSatisfy {
                     block.lines.contains($0.lines.lowerBound) && block.lines.contains($0.lines.upperBound)
@@ -75,7 +76,8 @@ enum Invariants {
                 sourceLocation: sourceLocation
             )
             #expect(
-                block.functions.map(\.name) == block.members.filter { $0.kind == .function }.map(\.name),
+                block.functions.map(\.name) == functionMembers.map(\.name)
+                    && block.functions.map(\.attributes) == functionMembers.map(\.attributes),
                 "\(block.owner)'s functions and function members disagree",
                 sourceLocation: sourceLocation
             )

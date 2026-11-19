@@ -48,8 +48,11 @@ public struct Member: Sendable, Hashable {
 
     /// The attributes, in order, with those in each branch of an `#if`:
     /// the declaration's, shared by the names it declares, so
-    /// `@Published var a, b` gives both `Published`. A property wrapper is
-    /// named as spelled, such as `Combine.Published`.
+    /// `@MainActor var a, b` gives both `MainActor`. A property wrapper is
+    /// named as spelled, such as `Combine.Published`. Since the names share
+    /// them, a check that reads every member's attributes does names ×
+    /// attributes work on one declaration: quadratic in a file written to
+    /// make it so (SECURITY.md).
     public var attributes: [Attribute]
 
     /// The line of the member's name, or of its keyword when it has no
