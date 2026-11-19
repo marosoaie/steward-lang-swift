@@ -3,10 +3,11 @@ import StewardSwift
 import Testing
 
 /// The compiler's view of swift-argument-parser's functions, types and
-/// members, and their doc comments: its symbol graph, at the minimum access level `private`, which the compiler writes
-/// while it builds the package. (`swift package dump-symbol-graph` would
-/// do too, but before Swift 6.4 it also extracts the package's test
-/// module, which fails, so the command exits with an error.)
+/// members, and their doc comments: its symbol graph, at the minimum
+/// access level `private`, which the compiler writes while it builds the
+/// package. (`swift package dump-symbol-graph` would do too, but before
+/// Swift 6.4 it also extracts the package's test module, which fails, so
+/// the command exits with an error.)
 ///
 /// Building takes a minute, so the tests that read it run only when
 /// `STEWARD_SWIFT_ORACLE=1` is set (CI's macos-tests job sets it).

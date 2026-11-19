@@ -54,10 +54,12 @@ public struct FunctionDeclaration: Sendable {
     /// dropped, so an empty doc comment is `""`.
     ///
     /// Where the compiler, as of Swift 6.4, reads otherwise: a doc comment
-    /// after code on the line above documents that code, not this
-    /// declaration, and a block comment with CRLF line ends reads as one
-    /// with LF ends, where the compiler keeps its stars and adds an empty
-    /// line after each line.
+    /// after code on the line above is no declaration's, where the compiler
+    /// gives it to the next one; a block comment with CRLF line ends reads
+    /// as one with LF ends, where the compiler keeps its stars and adds an
+    /// empty line after each line; and in a decorated block comment, the
+    /// star of a `**/` closer is decoration too, where the compiler keeps a
+    /// ` *` line.
     public var documentation: String?
 
     /// The line of the function's name, to report a finding at.

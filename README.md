@@ -153,9 +153,9 @@ member blocks their swift-syntax node, `syntax`, for what the model
 doesn't hold: `StewardSwift` re-exports SwiftSyntax, so its types need no
 import, and `file.location(of:)` gives such a node its location, as git
 counts lines. A raw node follows swift-syntax's version, not this
-package's: a new swift-syntax major can change it. A type's name in a signature or an inheritance clause is a
-`TypeName`, which matches a string by its spelling, and an access level
-an `AccessLevel`.
+package's: a new swift-syntax major can change it. A type's name in a
+signature or an inheritance clause is a `TypeName`, which matches a
+string by its spelling, and an access level an `AccessLevel`.
 
 Each block below is the body of a test in this repository, so what it
 expects holds.

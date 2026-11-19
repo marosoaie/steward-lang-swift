@@ -97,7 +97,7 @@ struct DocumentationTests {
     }
 
     // The compiler attaches a doc comment that trails code to the next
-    // declaration; the model leaves it to the code it trails.
+    // declaration; the model gives it to neither.
     @Test("a doc comment after code on the line above isn't the next declaration's")
     func trailingComment() throws {
         let file = try Sample.file("""
@@ -127,6 +127,20 @@ struct DocumentationTests {
         let lf = try Sample.file(comment.replacingOccurrences(of: "\r\n", with: "\n") + "\nfunc f() {}")
         #expect(crlf.functions.map(\.documentation) == [text])
         #expect(lf.functions.map(\.documentation) == [text])
+    }
+
+    // The compiler, as of Swift 6.4, keeps the closer's star as a line of
+    // text: `Text` and ` *`, then `A`, ` *` and ` B`.
+    @Test(
+        "a **/ closer's star is decoration in a decorated block comment",
+        arguments: [
+            ("/**\n * Text\n **/\nfunc f() {}", "Text"),
+            ("struct S {\n    /**\n     * Text\n     **/\n    func f() {}\n}", "Text"),
+            ("/**\n * A\n **/\n/// B\nfunc f() {}", "A\n\n B"),
+        ]
+    )
+    func starClosers(source: String, text: String) throws {
+        #expect(try Sample.file(source).functions.map(\.documentation) == [text])
     }
 
     @Test("a rule finds the public functions with no doc comment, as issue #14 shows it")

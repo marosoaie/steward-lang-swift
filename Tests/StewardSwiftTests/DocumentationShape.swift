@@ -56,10 +56,28 @@ struct DocumentationShape: Sendable, CustomTestStringConvertible {
         Self(source: "/// A\n/// \npublic func NAME() {}", text: "A"),
         Self(source: "/// A   \npublic func NAME() {}", text: "A   "),
         Self(source: "//// four\npublic func NAME() {}", text: "/ four"),
+        // Markers and whitespace go by scalar: a combining mark after them
+        // stays. A vertical tab or a form feed is whitespace too.
+        Self(source: "///\u{301}A\npublic func NAME() {}", text: "\u{301}A"),
+        Self(source: "/// \u{301}A\n///  B\npublic func NAME() {}", text: "\u{301}A\n B"),
+        Self(source: "/**\n * \u{301}A\n */\npublic func NAME() {}", text: "\u{301}A"),
+        Self(source: "///\u{0B}A\n///  B\npublic func NAME() {}", text: "A\n B"),
+        Self(source: "///\u{0C}A\n///  B\npublic func NAME() {}", text: "A\n B"),
         Self(source: "/// crlf A\r\n/// crlf B\r\npublic func NAME() {}", text: "crlf A\ncrlf B"),
         // Block comments: the decoration goes only when `/**` ends its line
         // and the stars line up under it.
         Self(source: "/** A */\npublic func NAME() {}", text: "A "),
+        Self(source: "/***/\npublic func NAME() {}", text: ""),
+        Self(source: "/**/\npublic func NAME() {}", text: ""),
+        Self(source: "/// A\n/**/\n/// B\npublic func NAME() {}", text: "A\nB"),
+        Self(source: "/**\n*/\npublic func NAME() {}", text: ""),
+        Self(source: "/**\n * A\n *\n*/\npublic func NAME() {}", text: "A"),
+        // A line break at the end of a block's body starts no line.
+        Self(source: "/**\nText\n*/\n/// More\npublic func NAME() {}", text: "Text\n More"),
+        Self(source: "/** A\nB\n*/\n/// C\npublic func NAME() {}", text: "A\nB\nC"),
+        Self(source: "/**\nA\n*/\n/**\nB\n*/\npublic func NAME() {}", text: "A\nB"),
+        Self(source: "/// A\n/***/\n/// B\npublic func NAME() {}", text: "A\nB"),
+        Self(source: "/// A\n/**\n*/\n/// B\npublic func NAME() {}", text: "A\nB"),
         Self(source: "/** */\npublic func NAME() {}", text: ""),
         Self(source: "/** A\n * B\n */\npublic func NAME() {}", text: "A\n* B"),
         Self(source: "/**\n A\n */\npublic func NAME() {}", text: "A"),
