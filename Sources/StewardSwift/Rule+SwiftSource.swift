@@ -248,7 +248,10 @@ struct ScopedFindings: Sendable {
         }
         let unit = index.owner(of: innermost, line: line)
         guard scope == .changedTypes else {
-            return changed(index.units[unit].lines)
+            // Siblings that share the line each judge it: a change to any
+            // keeps the finding, the safe side.
+            let units = [unit] + index.sharing(innermost, line: line).map { index.owner(of: $0, line: line) }
+            return units.contains { changed(index.units[$0].lines) }
         }
         return index.container(of: unit, line: line).map { changed(index.units[$0].lines) } ?? true
     }

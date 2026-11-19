@@ -122,6 +122,25 @@ struct DeclarationIndexTests {
         #expect(!keeps(line, 5))
     }
 
+    @Test("siblings that share a line each judge a finding on it")
+    func sharedLine() throws {
+        // A pull request that adds the attribute changes `a`, not `b`, and
+        // both start on line 2.
+        let file = try SwiftFile(source: "@MainActor\nfunc a() {}; func b() {}\nfunc c() {}\n", path: Sample.path)
+        let index = DeclarationIndex(file: file)
+        let scoped = ScopedFindings(
+            path: file.path,
+            scope: .changedDeclarations,
+            changedLines: LineRangeSet([1...1]),
+            linesAfterDeletions: LineRangeSet(),
+            index: index,
+            lineCount: file.sourceLines.count
+        )
+        #expect(file.functions.map(\.location.line) == [2, 2, 3])
+        #expect(file.functions.map { scoped.keeps(.message($0.name, at: $0.location)) } == [true, true, false])
+        #expect(index.sharing(try #require(index.innermost(containing: 2)), line: 2).count == 1)
+    }
+
     @Test("items under ninety-five nested #if blocks are indexed about as fast as the same items under none")
     func deepConditionalCompilation() throws {
         // A gate and a limit of the test's own: under a loaded run's other

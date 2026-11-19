@@ -28,6 +28,8 @@ struct DeclarationIndex: Sendable {
     /// In source order, outer before inner, so in order of their first
     /// lines.
     let units: [Unit]
+    /// The units by their last line, for `sharing(_:line:)`.
+    private let endingOn: [Int: [Int]]
 
     init(file: SwiftFile) {
         // The item lists at the top of the file, through any `#if`, found
@@ -39,7 +41,9 @@ struct DeclarationIndex: Sendable {
                 || node.is(IfConfigClauseListSyntax.self) || node.is(IfConfigClauseSyntax.self)
         }.filter { $0.is(CodeBlockItemListSyntax.self) }.map(\.id))
         let nodes = file.syntax.preorder().filter { Self.isUnit($0, topLevel: topLevel) }
-        units = Self.units(nodes, lines: file.sourceLines)
+        let units = Self.units(nodes, lines: file.sourceLines)
+        self.units = units
+        endingOn = Dictionary(grouping: units.indices) { units[$0].lines.upperBound }
     }
 
     /// The innermost unit whose lines hold `line`, if one does.
@@ -72,6 +76,16 @@ struct DeclarationIndex: Sendable {
         sequence(first: unit) { units[$0].parent }.dropFirst()
             .prefix { units[$0].header.contains(line) }
             .reduce(unit) { $1 }
+    }
+
+    /// The units other than `unit`, the innermost around `line`, that hold
+    /// the line as closely: the earlier ones that end on it, as in
+    /// `func a() {}; func b() {}`, but not those around `unit`. Only a unit
+    /// that ends on the line can, since units nest: one that doesn't hold
+    /// `unit` ended before it started.
+    func sharing(_ unit: Int, line: Int) -> [Int] {
+        let around = Set(sequence(first: unit) { units[$0].parent })
+        return (endingOn[line] ?? []).filter { !around.contains($0) && units[$0].lines.contains(line) }
     }
 
     /// The type or extension whose braces hold `line` most closely, among
