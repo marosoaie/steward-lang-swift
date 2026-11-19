@@ -1,5 +1,5 @@
 import Foundation
-import StewardSwift
+@testable import StewardSwift
 import Testing
 
 /// Real files, whole, cut short and mutated: nothing traps, every parse
@@ -75,14 +75,23 @@ struct RobustnessTests {
         }
     }
 
-    /// Reads `source` within the budget. A file that's read keeps the
-    /// invariants; a refusal is an outcome too, but never a trap.
+    /// Reads `source`, and indexes it for the scopes, within the budget. A
+    /// file that's read keeps the invariants; a refusal is an outcome too,
+    /// but never a trap.
     @discardableResult
     private static func check(source: String, path: String, what: String) -> Result<SwiftFile, SwiftFile.Refusal> {
         let clock = ContinuousClock()
         var outcome: Result<SwiftFile, SwiftFile.Refusal>?
         let elapsed = clock.measure {
             outcome = Result { () throws(SwiftFile.Refusal) in try SwiftFile(source: source, path: path) }
+            // The scopes' index, and a lookup at every line, as for a rule
+            // that reports on each.
+            if case .success(let file) = outcome {
+                let index = DeclarationIndex(file: file)
+                (0...(file.sourceLines.count + 1)).forEach { (line: Int) in
+                    _ = index.innermost(containing: line).flatMap { index.container(of: $0, line: line) }
+                }
+            }
         }
         #expect(elapsed < parseBudget, "\(what) took \(elapsed)")
         if case .success(let file) = outcome {

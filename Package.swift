@@ -20,10 +20,10 @@ let package = Package(
     ],
     dependencies: [
         // One minor release of Steward: a 0.x minor may break the API this
-        // package builds against. 0.2 for now, which has all that the model
-        // needs; the requirement moves to 0.3 before `Rule.swiftSource`,
-        // which reads files through 0.3's public API.
-        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.2.0")),
+        // package builds against. 0.3 has what `Rule.swiftSource` builds on:
+        // `Rule.changedFiles`, a file's contents at the head, the changed
+        // lines and the lines after deletions, and `Finding.skipped`.
+        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.3.0")),
         // A range of majors (AGENTS.md). SwiftPM picks the newest in it, and
         // a parser older than the code it reads skips that file, so the upper
         // bound moves soon after each swift-syntax major. CI also builds
@@ -54,10 +54,20 @@ let package = Package(
             path: "Benchmarks/StewardSwiftBenchmark",
             swiftSettings: swiftSettings
         ),
+        // The Dangerfile the end-to-end tests run as its own process, as a
+        // workflow runs one. A dependency of the tests, so that building
+        // them builds it; not a product.
+        .executableTarget(
+            name: "SwiftRulesFixture",
+            dependencies: ["StewardSwift"],
+            path: "Tests/SwiftRulesFixture",
+            swiftSettings: swiftSettings
+        ),
         .testTarget(
             name: "StewardSwiftTests",
             dependencies: [
                 "StewardSwift",
+                "SwiftRulesFixture",
                 .product(name: "StewardTesting", package: "swift-steward"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],

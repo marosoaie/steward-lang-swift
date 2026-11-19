@@ -15,6 +15,12 @@ struct SourceLines: Sendable {
             .map { $0.offset + 1 }
     }
 
+    /// How many lines the source has: one more than its line feeds, so a
+    /// source that ends with one has an empty last line.
+    var count: Int {
+        starts.count
+    }
+
     /// The 1-based line that holds the byte at `offset`; an offset past the
     /// end is on the last line.
     func line(atUTF8Offset offset: Int) -> Int {

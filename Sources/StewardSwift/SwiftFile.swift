@@ -46,6 +46,10 @@ public struct SwiftFile: Sendable {
     /// package's.
     public var syntax: SourceFileSyntax
 
+    /// Where each line of the source starts, for the declarations' lines
+    /// and `Rule.swiftSource`'s scopes.
+    let sourceLines: SourceLines
+
     /// Parses `source`, the contents of the file at `path`, and reads its
     /// declarations.
     ///
@@ -79,27 +83,33 @@ public struct SwiftFile: Sendable {
             throw .nestingTooDeep(excess.shape, line: excess.line, limit: excess.shape.limit)
         }
         guard gate.isOpen else { throw .earlierParseStillRunning }
-        let outcome = LargeStack.run(timeLimit: timeLimit, gate: gate) { () -> Result<SwiftFile, Refusal> in
-            var parser = Parser(source, maximumNestingLevel: Self.maximumNestingLevel)
-            let tree = SourceFileSyntax.parse(from: &parser)
-            // Past its nesting limit, the parser leaves the rest of the file
-            // as unexpected text, so declarations there would be lost.
-            guard !tree.hasMaximumNestingLevelOverflow else {
-                return .failure(.nestedPastParserLimit(limit: Self.maximumNestingLevel))
-            }
-            let depth = tree.depth(cappedAt: Self.maximumTreeDepth + 1)
-            guard depth <= Self.maximumTreeDepth else {
-                return .failure(.syntaxTreeTooDeep(depth: depth, limit: Self.maximumTreeDepth))
-            }
-            return .success(SwiftFile(tree: tree, source: source, path: path))
-        }
+        let outcome = LargeStack.run(timeLimit: timeLimit, gate: gate) { parseOnThisThread(source: source, path: path) }
         guard let outcome else { throw .timedOut(limit: timeLimit) }
         return try outcome.get()
+    }
+
+    /// Parses `source` that the nesting scan let through, on the calling
+    /// thread, which must have a large stack, as `LargeStack`'s threads do,
+    /// and reads its declarations.
+    static func parseOnThisThread(source: String, path: String) -> Result<SwiftFile, Refusal> {
+        var parser = Parser(source, maximumNestingLevel: maximumNestingLevel)
+        let tree = SourceFileSyntax.parse(from: &parser)
+        // Past its nesting limit, the parser leaves the rest of the file as
+        // unexpected text, so declarations there would be lost.
+        guard !tree.hasMaximumNestingLevelOverflow else {
+            return .failure(.nestedPastParserLimit(limit: maximumNestingLevel))
+        }
+        let depth = tree.depth(cappedAt: maximumTreeDepth + 1)
+        guard depth <= maximumTreeDepth else {
+            return .failure(.syntaxTreeTooDeep(depth: depth, limit: maximumTreeDepth))
+        }
+        return .success(SwiftFile(tree: tree, source: source, path: path))
     }
 
     private init(tree: SourceFileSyntax, source: String, path: String) {
         let lines = SourceLines(source: source)
         let nodes = Array(tree.preorder())
+        sourceLines = lines
         self.path = path
         imports = nodes.compactMap { $0.as(ImportDeclSyntax.self) }.map { Import($0, path: path, lines: lines) }
         types = nodes.compactMap { $0.as(DeclSyntax.self) }.compactMap { TypeDeclaration($0, path: path, lines: lines) }
