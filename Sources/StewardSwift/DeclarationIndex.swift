@@ -2,13 +2,13 @@ import SwiftSyntax
 
 /// A file's units, for `SwiftSourceScope`: the declarations the model
 /// names and the file's top-level statements, the lines each spans, which
-/// holds which, and for a type or an extension, the lines inside its
-/// braces.
+/// holds which, for a type or an extension the lines inside its braces,
+/// and which units have tokens of their own on each line.
 ///
 /// A unit is a type or an extension, a member of one, a `func` at any
 /// depth, or a declaration or statement at the top of the file, each
 /// through any `#if` around it. A local `let`, an accessor or a closure
-/// isn't one: its lines belong to the unit around it.
+/// isn't one: its tokens and lines belong to the unit around it.
 struct DeclarationIndex: Sendable {
     struct Unit: Sendable {
         /// From the comment lines directly above the unit, with no blank
@@ -18,9 +18,6 @@ struct DeclarationIndex: Sendable {
         /// the one after the line of `{` to the line of `}`; nil for any
         /// other unit, and for braces with no line between them.
         var body: ClosedRange<Int>?
-        /// Its lines up to the last of its names' and of its `{`s', if it
-        /// has them: they are its own, whatever else starts on them.
-        var header: ClosedRange<Int>
         /// The innermost unit around this one.
         var parent: Int?
     }
@@ -28,8 +25,9 @@ struct DeclarationIndex: Sendable {
     /// In source order, outer before inner, so in order of their first
     /// lines.
     let units: [Unit]
-    /// The units by their last line, for `sharing(_:line:)`.
-    private let endingOn: [Int: [Int]]
+    /// For each line, the units with a token of their own on it, not one
+    /// of a unit inside them, in source order.
+    private let owners: [[Int]]
 
     init(file: SwiftFile) {
         // The item lists at the top of the file, through any `#if`, found
@@ -40,10 +38,7 @@ struct DeclarationIndex: Sendable {
                 || node.is(CodeBlockItemSyntax.self) || node.is(IfConfigDeclSyntax.self)
                 || node.is(IfConfigClauseListSyntax.self) || node.is(IfConfigClauseSyntax.self)
         }.filter { $0.is(CodeBlockItemListSyntax.self) }.map(\.id))
-        let nodes = file.syntax.preorder().filter { Self.isUnit($0, topLevel: topLevel) }
-        let units = Self.units(nodes, lines: file.sourceLines)
-        self.units = units
-        endingOn = Dictionary(grouping: units.indices) { units[$0].lines.upperBound }
+        (units, owners) = Self.index(file.syntax, lines: file.sourceLines, topLevel: topLevel)
     }
 
     /// The innermost unit whose lines hold `line`, if one does.
@@ -68,27 +63,15 @@ struct DeclarationIndex: Sendable {
         return sequence(first: low - 1) { units[$0].parent }.first { units[$0].lines.contains(line) }
     }
 
-    /// `unit`, or the outermost unit around it whose header holds `line`:
-    /// a declaration's lines up to its name and its `{` are its own, so a
-    /// member that starts on its type's `{` line, or a local function on
-    /// a property's, doesn't take the line from it.
-    ///
-    /// It looks no further than the braces that hold the line, whose line
-    /// it is, so the owner is inside the type or extension that
-    /// `container(of:line:)` finds.
-    func owner(of unit: Int, line: Int) -> Int {
-        Array(sequence(first: unit) { units[$0].parent }.prefix { units[$0].body?.contains(line) != true }.dropFirst())
-            .last { units[$0].header.contains(line) } ?? unit
-    }
-
-    /// The units other than `unit`, the innermost around `line`, that hold
-    /// the line as closely: the earlier ones that end on it, as in
-    /// `func a() {}; func b() {}`, but not those around `unit`. Only a unit
-    /// that ends on the line can, since units nest: one that doesn't hold
-    /// `unit` ended before it started.
-    func sharing(_ unit: Int, line: Int) -> [Int] {
-        let around = Set(sequence(first: unit) { units[$0].parent })
-        return (endingOn[line] ?? []).filter { !around.contains($0) && units[$0].lines.contains(line) }
+    /// The units a finding at `line` is judged by: every unit with a token
+    /// of its own on the line, so that a line that two declarations share,
+    /// `struct B { var x = 1` or `func a() {}; func b() {}`, is each one's;
+    /// on a line with none, a blank or comment one, the innermost unit
+    /// around it; at the top of the file, none.
+    func units(judging line: Int) -> [Int] {
+        let owning = owners.indices.contains(line) ? owners[line] : []
+        guard owning.isEmpty else { return owning }
+        return innermost(containing: line).map { [$0] } ?? []
     }
 
     /// The type or extension whose braces hold `line` most closely, among
@@ -112,29 +95,42 @@ struct DeclarationIndex: Sendable {
         )
     }
 
-    /// The units of `nodes`, in source order, each with its parent: the last
-    /// one still open at its start, since units nest by their bytes, which
-    /// two on one line don't by their lines.
-    private static func units(_ nodes: [Syntax], lines: SourceLines) -> [Unit] {
+    /// The units under `root`, in source order, each with its parent, and
+    /// for each line the units with tokens of their own on it: in one walk,
+    /// whose state is the stack of units still open, since units nest by
+    /// their bytes, which two on one line don't by their lines.
+    private static func index(
+        _ root: SourceFileSyntax,
+        lines: SourceLines,
+        topLevel: Set<SyntaxIdentifier>
+    ) -> (units: [Unit], owners: [[Int]]) {
         // An imperative loop: the stack of units still open is the state
-        // carried from one unit to the next.
+        // carried from one node to the next.
         var open: [(index: Int, end: Int)] = []
         var units: [Unit] = []
-        for node in nodes {
+        var owners = Array(repeating: [Int](), count: lines.count + 1)
+        for node in root.preorder() {
             let start = node.positionAfterSkippingLeadingTrivia.utf8Offset
             while let last = open.last, last.end <= start {
                 open.removeLast()
             }
-            let commented = commentedLines(of: node, in: lines)
-            units.append(Unit(
-                lines: commented,
-                body: body(of: node, in: lines),
-                header: commented.lowerBound...headerEnd(of: node, in: lines),
-                parent: open.last?.index
-            ))
-            open.append((units.count - 1, node.endPositionBeforeTrailingTrivia.utf8Offset))
+            if let token = node.as(TokenSyntax.self) {
+                guard let owner = open.last?.index, token.presence == .present else { continue }
+                lines.lines(of: token).forEach { line in
+                    if owners[line].last != owner {
+                        owners[line].append(owner)
+                    }
+                }
+            } else if isUnit(node, topLevel: topLevel) {
+                units.append(Unit(
+                    lines: commentedLines(of: node, in: lines),
+                    body: body(of: node, in: lines),
+                    parent: open.last?.index
+                ))
+                open.append((units.count - 1, node.endPositionBeforeTrailingTrivia.utf8Offset))
+            }
         }
-        return units
+        return (units, owners)
     }
 
     /// The lines of `node`, from the comments directly above it, its doc
@@ -167,46 +163,6 @@ struct DeclarationIndex: Sendable {
             }
         }
         return firstComment.map { lines.line(atUTF8Offset: $0)...tokens.upperBound } ?? tokens
-    }
-
-    /// The last line of `node`'s header: the latest of its first token's,
-    /// the last line of each name it declares, and its `{`s'.
-    private static func headerEnd(of node: Syntax, in lines: SourceLines) -> Int {
-        let marks = names(of: node).map { lines.lines(of: $0).upperBound }
-            + openingBraces(of: node).map { lines.line(of: $0) }
-        return ([lines.line(of: node)] + marks).max() ?? lines.line(of: node)
-    }
-
-    /// The tokens and patterns that name what the declaration `node`
-    /// declares: every binding's pattern, tuples included, for a property.
-    private static func names(of node: Syntax) -> [Syntax] {
-        if let named = node.asProtocol((any NamedDeclSyntax).self) {
-            return [Syntax(named.name)]
-        }
-        return switch node.as(SyntaxEnum.self) {
-        case .variableDecl(let variable): variable.bindings.map { Syntax($0.pattern) }
-        case .enumCaseDecl(let enumCase): enumCase.elements.map { Syntax($0.name) }
-        case .initializerDecl(let initializer): [Syntax(initializer.initKeyword)]
-        case .deinitializerDecl(let deinitializer): [Syntax(deinitializer.deinitKeyword)]
-        case .subscriptDecl(let subscriptDecl): [Syntax(subscriptDecl.subscriptKeyword)]
-        case .extensionDecl(let extensionDecl): [Syntax(extensionDecl.extendedType)]
-        default: []
-        }
-    }
-
-    /// The `{`s that open `node`'s members, body or accessors.
-    private static func openingBraces(of node: Syntax) -> [TokenSyntax] {
-        if let group = node.asProtocol((any DeclGroupSyntax).self) {
-            return [group.memberBlock.leftBrace]
-        }
-        return switch node.as(SyntaxEnum.self) {
-        case .functionDecl(let function): [function.body?.leftBrace].compactMap(\.self)
-        case .initializerDecl(let initializer): [initializer.body?.leftBrace].compactMap(\.self)
-        case .deinitializerDecl(let deinitializer): [deinitializer.body?.leftBrace].compactMap(\.self)
-        case .subscriptDecl(let subscriptDecl): [subscriptDecl.accessorBlock?.leftBrace].compactMap(\.self)
-        case .variableDecl(let variable): variable.bindings.compactMap { $0.accessorBlock?.leftBrace }
-        default: []
-        }
     }
 
     /// For a type or an extension, the lines inside its braces.

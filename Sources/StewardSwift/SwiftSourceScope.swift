@@ -22,6 +22,12 @@
 /// it would without it, and a directive's line is a line of whatever is
 /// around it.
 ///
+/// A finding is judged by its line: by every unit with a token of its own
+/// on that line, not one of a unit inside it, so that a line two
+/// declarations share, as in `struct B { var x = 1` or
+/// `func a() {}; func b() {}`, is each one's, and a change to either keeps
+/// the finding; a blank or comment line, by the innermost unit around it.
+///
 /// A unit counts as changed when the pull request adds or rewrites one of
 /// its lines, or deletes lines inside it or directly above its first line:
 /// `changedLines.overlaps(lines) || linesAfterDeletions.overlaps(lines)`.
@@ -40,16 +46,16 @@
 /// finding is about what no line holds, such as a file's name, which a
 /// rename changes without changing a line.
 public enum SwiftSourceScope: Sendable, Hashable, CaseIterable {
-    /// Keep a finding when the innermost unit around its line changed; on
-    /// a line in no unit, a blank or comment line between top-level items,
-    /// when that line changed.
+    /// Keep a finding when a unit that judges its line changed; on a line
+    /// in no unit, a blank or comment line between top-level items, when
+    /// that line changed.
     case changedDeclarations
 
     /// Keep a finding when the type or extension whose braces hold its line
-    /// changed anywhere. The line of the `{` is outside the braces, so a
-    /// nested type's own line belongs to the type around it. At the top of
-    /// the file, outside any braces, the container is the file, and every
-    /// finding is kept.
+    /// changed anywhere, for a unit that judges the line. The line of the
+    /// `{` is outside the braces, so a nested type's own line belongs to
+    /// the type around it. At the top of the file, outside any braces, the
+    /// container is the file, and every finding is kept.
     ///
     /// It keeps every finding `changedDeclarations` keeps.
     case changedTypes

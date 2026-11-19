@@ -91,7 +91,7 @@ struct DeclarationIndexTests {
     }
 
     @Test(
-        "a declaration's lines up to its name and its `{` are its own, whatever starts on them",
+        "a line is every declaration's that has a token of its own on it, whatever else starts there",
         arguments: [
             ("struct B { var x = 1\n    var y = 2\n    var z = 3\n}\n", 1),
             ("func a() { func b() {}\n    print(1)\n    print(2)\n}\n", 1),
@@ -101,6 +101,7 @@ struct DeclarationIndexTests {
             ("var a = 0,\n    b = { func inner() {}\n        return 0\n    }()\n", 2),
             ("let (a,\n     b) = ({ func inner() {}\n    return 0\n}(), 1)\n", 2),
             ("var a = { func helper() {\nfunc inner() {} }; return 0 }(), b =\n    1 +\n    2\n", 2),
+            ("var a = {\n    struct Local {\n    }; return 0 }(), b =\n    0\n", 3),
         ]
     )
     func header(source: String, line: Int) throws {
@@ -117,8 +118,8 @@ struct DeclarationIndexTests {
             ).keeps(.message("", at: Location(path: file.path, line: line)))
         }
         // A finding at the outer declaration is kept when any of its four
-        // lines changes; the one that starts on its header is judged with
-        // it, the safe side.
+        // lines changes; the one that shares its line is judged with it,
+        // the safe side.
         #expect((1...4).allSatisfy { keeps(line, $0) })
         #expect(!keeps(line, 5))
     }
@@ -139,7 +140,7 @@ struct DeclarationIndexTests {
         )
         #expect(file.functions.map(\.location.line) == [2, 2, 3])
         #expect(file.functions.map { scoped.keeps(.message($0.name, at: $0.location)) } == [true, true, false])
-        #expect(index.sharing(try #require(index.innermost(containing: 2)), line: 2).count == 1)
+        #expect(index.units(judging: 2).count == 2)
     }
 
     @Test("a finding at another spelling of the file's path is another file's, as git tells paths apart by bytes")

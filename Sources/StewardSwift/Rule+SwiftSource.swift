@@ -261,20 +261,20 @@ struct ScopedFindings: Sendable {
     private func keeps(line: Int) -> Bool {
         // A line the file doesn't have, a rule's bug, is a loose line, and
         // never an index.
-        guard 1...lineCount ~= line, let innermost = index.innermost(containing: line) else {
+        let units = 1...lineCount ~= line ? index.units(judging: line) : []
+        guard !units.isEmpty else {
             // A loose line is at the top of the file, whose container is
             // the file.
             return scope == .changedTypes || changed(line...line)
         }
-        let unit = index.owner(of: innermost, line: line)
+        // Each unit with a token on the line judges it: a change to any
+        // keeps the finding, the safe side.
         guard scope == .changedTypes else {
-            // Siblings that share the line each judge it: a change to any
-            // keeps the finding, the safe side.
-            return changed(index.units[unit].lines) || index.sharing(innermost, line: line).contains { sibling in
-                changed(index.units[index.owner(of: sibling, line: line)].lines)
-            }
+            return units.contains { changed(index.units[$0].lines) }
         }
-        return index.container(of: unit, line: line).map { changed(index.units[$0].lines) } ?? true
+        return units.contains { unit in
+            index.container(of: unit, line: line).map { changed(index.units[$0].lines) } ?? true
+        }
     }
 }
 
