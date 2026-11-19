@@ -90,6 +90,59 @@ struct DeclarationIndexTests {
         }
     }
 
+    @Test(
+        "a line is every declaration's that has a token of its own on it, whatever else starts there",
+        arguments: [
+            ("struct B { var x = 1\n    var y = 2\n    var z = 3\n}\n", 1),
+            ("func a() { func b() {}\n    print(1)\n    print(2)\n}\n", 1),
+            ("var x = { func inner() {}\n    print(1)\n    print(2)\n}()\n", 1),
+            ("@available(*, deprecated)\nvar x = { func inner() {}\n    print(1)\n}()\n", 2),
+            ("struct B<T>\n    where T: Equatable { var x = 1\n    var y = 2\n}\n", 1),
+            ("var a = 0,\n    b = { func inner() {}\n        return 0\n    }()\n", 2),
+            ("let (a,\n     b) = ({ func inner() {}\n    return 0\n}(), 1)\n", 2),
+            ("var a = { func helper() {\nfunc inner() {} }; return 0 }(), b =\n    1 +\n    2\n", 2),
+            ("var a = {\n    struct Local {\n    }; return 0 }(), b =\n    0\n", 3),
+        ]
+    )
+    func header(source: String, line: Int) throws {
+        let file = try SwiftFile(source: source, path: Sample.path)
+        let index = DeclarationIndex(file: file)
+        let keeps = { (line: Int, changed: Int) in
+            ScopedFindings(
+                path: file.path,
+                scope: .changedDeclarations,
+                changedLines: LineRangeSet([changed...changed]),
+                linesAfterDeletions: LineRangeSet(),
+                index: index,
+                lineCount: file.sourceLines.count
+            ).keeps(.message("", at: Location(path: file.path, line: line)))
+        }
+        // A finding at the outer declaration is kept when any of its four
+        // lines changes; the one that shares its line is judged with it,
+        // the safe side.
+        #expect((1...4).allSatisfy { keeps(line, $0) })
+        #expect(!keeps(line, 5))
+    }
+
+    @Test("siblings that share a line each judge a finding on it")
+    func sharedLine() throws {
+        // A pull request that adds the attribute changes `a`, not `b`, and
+        // both start on line 2.
+        let file = try SwiftFile(source: "@MainActor\nfunc a() {}; func b() {}\nfunc c() {}\n", path: Sample.path)
+        let index = DeclarationIndex(file: file)
+        let scoped = ScopedFindings(
+            path: file.path,
+            scope: .changedDeclarations,
+            changedLines: LineRangeSet([1...1]),
+            linesAfterDeletions: LineRangeSet(),
+            index: index,
+            lineCount: file.sourceLines.count
+        )
+        #expect(file.functions.map(\.location.line) == [2, 2, 3])
+        #expect(file.functions.map { scoped.keeps(.message($0.name, at: $0.location)) } == [true, true, false])
+        #expect(index.units(judging: 2).count == 2)
+    }
+
     @Test("a finding at another spelling of the file's path is another file's, as git tells paths apart by bytes")
     func pathBytes() throws {
         let precomposed = "Sources/Caf\u{E9}.swift"
@@ -137,8 +190,11 @@ struct DeclarationIndexTests {
     /// inside its parent.
     private static func checkLookups(_ files: [Corpus.File]) {
         files.forEach { corpusFile in
-            guard let file = try? SwiftFile(source: corpusFile.source, path: corpusFile.path) else {
-                Issue.record("\(corpusFile.path) was refused")
+            let file: SwiftFile
+            do {
+                file = try SwiftFile(source: corpusFile.source, path: corpusFile.path)
+            } catch {
+                Issue.record("\(corpusFile.path) was refused: \(error)")
                 return
             }
             let index = DeclarationIndex(file: file)
@@ -162,8 +218,11 @@ struct DeclarationIndexTests {
     /// only the line after it does.
     private static func checkModelValues(_ files: [Corpus.File]) {
         files.forEach { corpusFile in
-            guard let file = try? SwiftFile(source: corpusFile.source, path: corpusFile.path) else {
-                Issue.record("\(corpusFile.path) was refused")
+            let file: SwiftFile
+            do {
+                file = try SwiftFile(source: corpusFile.source, path: corpusFile.path)
+            } catch {
+                Issue.record("\(corpusFile.path) was refused: \(error)")
                 return
             }
             let values = file.functions.map { ($0.location, $0.lines) } + file.types.map { ($0.location, $0.lines) }
@@ -189,5 +248,53 @@ struct DeclarationIndexTests {
                 #expect(!keeps(lines.upperBound + 1...lines.upperBound + 1), "\(what): the line after it changed")
             }
         }
+    }
+}
+
+/// The index's cost on dense and deeply nested files.
+extension DeclarationIndexTests {
+    @Test("thousands of declarations on one line, each with a finding, are scoped in bounded time")
+    func manyOnOneLine() throws {
+        let source = (0..<20_000).map { "var v\($0) = \($0)" }.joined(separator: "; ") + "\n"
+        let file = try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
+        let scoped = ScopedFindings(
+            path: file.path,
+            scope: .changedDeclarations,
+            changedLines: LineRangeSet(),
+            linesAfterDeletions: LineRangeSet(),
+            index: DeclarationIndex(file: file),
+            lineCount: file.sourceLines.count
+        )
+        let findings = (0..<20_000).map { Finding.message("v\($0)", at: Location(path: file.path, line: 1)) }
+        let clock = ContinuousClock()
+        var kept: [Finding] = []
+        let elapsed = clock.measure { kept = scoped.kept(findings) }
+        #expect(kept.isEmpty)
+        // Judged once for the line: a judgment for each finding would walk
+        // 20,000 siblings 20,000 times.
+        #expect(elapsed < .seconds(2), "took \(elapsed)")
+    }
+
+    @Test("items under ninety-five nested #if blocks are indexed about as fast as the same items under none")
+    func deepConditionalCompilation() throws {
+        // A gate and a limit of the test's own: under a loaded run's other
+        // tests, this read can outlast its deadline, and a runaway on the
+        // shared gate would refuse every later read in the process.
+        let read = { (depth: Int) throws -> SwiftFile in
+            let items = String(repeating: "f()\n", count: 20_000)
+            let source = String(repeating: "#if A\n", count: depth) + items
+                + String(repeating: "#endif\n", count: depth)
+            return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
+        }
+        let (flat, deep) = (try read(0), try read(95))
+        // The faster of three, each way, to see past a loaded machine. The
+        // walk this replaced took about six times as long under 95 `#if`s.
+        let clock = ContinuousClock()
+        let time = { (file: SwiftFile) in
+            (0..<3).map { _ in clock.measure { _ = DeclarationIndex(file: file) } }.min() ?? .zero
+        }
+        #expect(DeclarationIndex(file: deep).units.count == 20_000)
+        let (flatTime, deepTime) = (time(flat), time(deep))
+        #expect(deepTime < flatTime * 2 + .milliseconds(100), "\(deepTime) under 95 #if, \(flatTime) under none")
     }
 }

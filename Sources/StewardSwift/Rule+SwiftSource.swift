@@ -200,7 +200,7 @@ struct SwiftSourceReading: Sendable {
             return .damaged
         case .read(let file, let scoped):
             do {
-                return .checked(try check(file, log).filter(scoped.keeps))
+                return .checked(scoped.kept(try check(file, log)))
             } catch {
                 return .threw(error)
             }
@@ -231,25 +231,50 @@ struct ScopedFindings: Sendable {
         changedLines.overlaps(lines) || linesAfterDeletions.overlaps(lines)
     }
 
+    /// The findings among `findings` the scope keeps, in their order,
+    /// each line judged once: a check may report on thousands of
+    /// declarations that share one line.
+    func kept(_ findings: [Finding]) -> [Finding] {
+        let lines = Set(findings.compactMap(judgedLine(of:)))
+        let decisions = Dictionary(uniqueKeysWithValues: lines.map { ($0, keeps(line: $0)) })
+        return findings.filter { finding in judgedLine(of: finding).map { decisions[$0] ?? true } ?? true }
+    }
+
     func keeps(_ finding: Finding) -> Bool {
+        judgedLine(of: finding).map(keeps(line:)) ?? true
+    }
+
+    /// The line the scope judges `finding` by, or nil when it keeps the
+    /// finding whatever changed.
+    private func judgedLine(of finding: Finding) -> Int? {
         // A scope narrows by line: a finding with none, or about another
         // file, is about what no line of this file holds. Paths compare by
         // their bytes, as git tells them apart: `==` takes a name's
         // precomposed and decomposed spellings for one.
         guard scope != .changedFiles, let location = finding.location,
-              location.path.utf8.elementsEqual(path.utf8), let line = location.line
-        else { return true }
+              location.path.utf8.elementsEqual(path.utf8)
+        else { return nil }
+        return location.line
+    }
+
+    /// Whether the scope keeps a finding at `line`.
+    private func keeps(line: Int) -> Bool {
         // A line the file doesn't have, a rule's bug, is a loose line, and
         // never an index.
-        guard 1...lineCount ~= line, let unit = index.innermost(containing: line) else {
+        let units = 1...lineCount ~= line ? index.units(judging: line) : []
+        guard !units.isEmpty else {
             // A loose line is at the top of the file, whose container is
             // the file.
             return scope == .changedTypes || changed(line...line)
         }
+        // Each unit with a token on the line judges it: a change to any
+        // keeps the finding, the safe side.
         guard scope == .changedTypes else {
-            return changed(index.units[unit].lines)
+            return units.contains { changed(index.units[$0].lines) }
         }
-        return index.container(of: unit, line: line).map { changed(index.units[$0].lines) } ?? true
+        return units.contains { unit in
+            index.container(of: unit, line: line).map { changed(index.units[$0].lines) } ?? true
+        }
     }
 }
 

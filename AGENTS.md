@@ -167,10 +167,11 @@ so `SwiftFile` defends it:
 - The parse has a deadline that grows with the source (2 s and 50 µs a
   byte). One that runs out leaves its thread running, and no other parse
   starts until it ends (`ParseGate`). In `Rule.swiftSource` the deadline
-  covers the scan, the parse, the model and the scopes' index, the
-  package's own work on the pull request's input; the rule's check runs
-  after it on the same thread with no limit, as a check in Steward has
-  none (`LargeStack.value`, which resumes the rule's task exactly once).
+  covers the parse, the model and the scopes' index, the package's own
+  work on the pull request's input after the nesting scan, one linear
+  pass on the rule's own thread before it; the rule's check runs after
+  it on the large thread with no limit, as a check in Steward has none
+  (`LargeStack.value`, which resumes the rule's task exactly once).
 - The package's own walks keep their own stack (`PreorderWalk`), and line
   numbers come from the source's line feeds (`SourceLines`), as git counts
   them; swift-syntax's walks and `SourceLocationConverter` recurse.
@@ -210,7 +211,9 @@ The scope tests take their diffs from git, a base and a head committed in
 a temporary repository (`TestRepository`, with Steward's `git diff`
 options), and the end-to-end tests run `SwiftRulesFixture`, a Dangerfile
 built beside the tests, as its own process, a dry run in such a
-repository; one of its rules crashes on a file that asks it to.
+repository; one of its rules crashes on a file that asks it to. On a
+Mac, each run of that test leaves a crash report, `SwiftRulesFixture-*.ips`,
+in `~/Library/Logs/DiagnosticReports`: the system's doing, not the test's.
 
 The oracle is the compiler: `SymbolGraphOracleTests` builds
 swift-argument-parser and reads its symbol graph at minimum access level
