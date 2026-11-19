@@ -76,6 +76,20 @@ public struct SwiftFile: Sendable {
         )
     }
 
+    /// Where `node`, a node of this file's tree, starts: the line of its
+    /// first token, counted as git counts lines, for a finding about what
+    /// the model doesn't hold.
+    ///
+    /// Use it rather than swift-syntax's `SourceLocationConverter`, whose
+    /// lines follow `#sourceLocation`: a pull request's file chooses the
+    /// line there, and one near `Int.max` overflows its arithmetic. It also
+    /// counts a lone carriage return as a line break, which git doesn't.
+    /// A node of another file's tree gets a line of this file's, which
+    /// means nothing, but never a trap.
+    public func location(of node: some SyntaxProtocol) -> Location {
+        Location(path: path, line: sourceLines.line(of: node))
+    }
+
     /// Reads `source` within `timeLimit`, unless `gate` says an earlier
     /// parse still runs.
     static func read(source: String, path: String, timeLimit: Duration, gate: ParseGate) throws(Refusal) -> SwiftFile {

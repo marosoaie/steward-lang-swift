@@ -150,7 +150,8 @@ types, local to functions) and in every branch of an `#if`. Each value
 has a `location` for a finding's `at:`. Functions, types, member blocks
 and members also have their `lines`, and the file, functions, types and
 member blocks their swift-syntax node, `syntax`, for what the model
-doesn't hold. A type's name in a signature or an inheritance clause is a
+doesn't hold; `file.location(of:)` gives such a node its location, as git
+counts lines. A type's name in a signature or an inheritance clause is a
 `TypeName`, which matches a string by its spelling, and an access level
 an `AccessLevel`.
 
@@ -363,7 +364,8 @@ static let flagParameters = Rule.swiftSource("Flag parameters") { file in
 
 A public function has a doc comment, which the model doesn't hold: the
 function's `syntax` does, in the trivia before its first token. Like the
-public initializers, it keeps the default scope, with the same gap.
+public initializers, it keeps the default scope, with the same gap, and
+one more: a requirement of a protocol that becomes public.
 `StewardSwift` re-exports SwiftSyntax, so its types need no import:
 
 <!-- README: documented-public-api -->
@@ -545,6 +547,9 @@ has the rest.
 
 ## More
 
+- [docs/model.md](docs/model.md): every type and property a rule reads.
+- [docs/recipes.md](docs/recipes.md): this repository's own conventions
+  as rules, which check its pull requests.
 - [AGENTS.md](AGENTS.md): how the package is built and tested.
 - [SECURITY.md](SECURITY.md): reading source a pull request controls.
 - [docs/performance.md](docs/performance.md): how fast a file is read.

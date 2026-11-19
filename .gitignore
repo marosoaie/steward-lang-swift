@@ -7,3 +7,6 @@ DerivedData/
 # Left out, every build resolves the newest versions in range, as a user's
 # would, and CI's lowest-swift-syntax job pins the range's lower bound.
 /Package.resolved
+# Logs macos-tests writes for Steward's diagnostics rule (and a local dry run).
+/build.log
+/swiftlint.log

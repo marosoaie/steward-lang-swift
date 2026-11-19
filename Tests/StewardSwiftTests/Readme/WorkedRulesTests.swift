@@ -143,5 +143,12 @@ struct WorkedRulesTests {
             to: ["Sources/Feed.swift": "public extension Feed {\n    func load() {}\n}\n"]
         )
         #expect(try await Checks.documentedPublicAPI.evaluate(exposed).isEmpty)
+        // And its second: a protocol that becomes public makes its
+        // requirements public, and their lines don't change.
+        let requirement = try SourceChange.context(
+            from: ["Sources/Feed.swift": "protocol Loading {\n    func load()\n}\n"],
+            to: ["Sources/Feed.swift": "public protocol Loading {\n    func load()\n}\n"]
+        )
+        #expect(try await Checks.documentedPublicAPI.evaluate(requirement).isEmpty)
     }
 }

@@ -10,9 +10,9 @@ on:
   schedule:
     - cron: "17 5 * * 1"
 
-# Read-only token for every job: nothing here writes to the repository or
-# the pull request, and actions/cache authenticates with its own runtime
-# token.
+# Read-only token for every job but macos-tests, whose Steward step posts
+# the summary comment on a pull request; actions/cache authenticates with
+# its own runtime token.
 permissions:
   contents: read
 
@@ -24,13 +24,19 @@ concurrency:
 
 jobs:
   # The build with warnings as errors, the tests under `swift test`, and
-  # SwiftLint over the whole tree. Every job but lowest-swift-syntax
-  # resolves the newest dependencies in range, as a user's Dangerfile
-  # would: Package.resolved isn't committed.
+  # SwiftLint over the whole tree; then, on a pull request, this
+  # repository's own Dangerfile through steward-action, and the
+  # Dangerfile's own tests. Every job but lowest-swift-syntax resolves the
+  # newest dependencies in range, as a user's Dangerfile would:
+  # Package.resolved isn't committed.
   macos-tests:
     name: macos-tests
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 45
+    # Steward creates, updates and deletes its summary comment.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
 
@@ -78,9 +84,12 @@ jobs:
           key: corpus-${{ runner.os }}-${{ hashFiles('Tests/StewardSwiftTests/Corpus.swift') }}
 
       # SwiftPM doesn't pass -warnings-as-errors on to dependencies, whose
-      # warnings it suppresses.
+      # warnings it suppresses. The log is for Steward's diagnostics rule.
       - name: Build
-        run: swift build --build-tests -Xswiftc -warnings-as-errors
+        shell: bash
+        run: |
+          set -o pipefail
+          swift build --build-tests -Xswiftc -warnings-as-errors 2>&1 | tee build.log
 
       - name: Save the build cache
         if: steps.build-key.outputs.key != steps.build-cache.outputs.cache-matched-key
@@ -99,13 +108,27 @@ jobs:
           STEWARD_SWIFT_ORACLE: "1"
         run: swift test --skip-build --filter SymbolGraphOracle
 
-      # Annotates every violation, and fails the job on any.
+      # Annotates every violation, and fails the job on any. The first run
+      # writes the default reporter's output for Steward's diagnostics rule.
       - name: SwiftLint
         if: ${{ !cancelled() }}
         run: |
           which swiftlint || brew install swiftlint
           swiftlint version
+          swiftlint lint --quiet > swiftlint.log || true
           swiftlint lint --quiet --strict --reporter github-actions-logging
+
+      # This repository's own Dangerfile/ (docs/recipes.md), which depends on
+      # this checkout, so the pull request is checked by its own model and
+      # rules. Pinned to a release: steward-action is at 0.x.
+      - name: Steward
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        uses: marosoaie/steward-action@v0.1.1
+
+      # The recipes compile and do what docs/recipes.md says, on every event.
+      - name: Test the Dangerfile's rules
+        if: ${{ !cancelled() }}
+        run: swift test --package-path Dangerfile
 
   # The tests as Xcode runs them, which lays out build products
   # differently. No warnings-as-errors here: Xcode builds dependencies

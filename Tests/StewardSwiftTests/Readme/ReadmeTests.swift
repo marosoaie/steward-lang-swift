@@ -61,34 +61,48 @@ struct ReadmeTests {
 
     @Test("every Swift block in the README is a compiled example, word for word, and every example is in it")
     func examples() throws {
-        let readme = try Readme()
-        let examples = try Readme.examples()
         // The manifest and the scopes' file are checked by their own tests.
-        let swiftBlocks = readme.blocks.filter { block in
-            block.language == "swift" && !["manifest", "scopes-file"].contains(block.name)
+        try Self.expectExamples(in: Document(Document.readme), except: ["manifest", "scopes-file"])
+    }
+
+    /// Each Swift block in `document`, but those named in `exceptions`, is
+    /// the example its marker names, word for word; and each example is
+    /// one of its blocks.
+    static func expectExamples(in document: Document, except exceptions: Set<String> = []) throws {
+        let examples = try document.examples()
+        let swiftBlocks = document.blocks.filter { block in
+            block.language == "swift" && !(block.name.map(exceptions.contains) ?? false)
         }
         #expect(!swiftBlocks.isEmpty)
         swiftBlocks.forEach { block in
             guard let name = block.name else {
-                Issue.record("README.md:\(block.line): a Swift block with no `<!-- README: name -->` before it")
+                Issue.record("\(document.source.path):\(block.line): a Swift block with no marker before it")
                 return
             }
-            #expect(examples[name] == block.text, "README.md:\(block.line): \(name) differs from its example")
+            #expect(
+                examples[name] == block.text,
+                "\(document.source.path):\(block.line): \(name) differs from its example"
+            )
         }
         let shown = Set(swiftBlocks.compactMap(\.name))
-        #expect(Set(examples.keys).subtracting(shown).isEmpty, "examples the README doesn't show")
+        #expect(Set(examples.keys).subtracting(shown).isEmpty, "examples \(document.source.path) doesn't show")
     }
 
     @Test("every fence in the README is one the checker reads: backticks at the start of a line, a language it knows")
     func fences() throws {
-        let readme = try Readme()
-        let fences = readme.text.split(separator: "\n", omittingEmptySubsequences: false).filter { line in
+        try Self.expectFences(in: Document(Document.readme))
+    }
+
+    /// Every fence in `document` is one the checker reads: backticks at the
+    /// start of a line, opening a block in a language the tests know.
+    static func expectFences(in document: Document) throws {
+        let fences = document.text.split(separator: "\n", omittingEmptySubsequences: false).filter { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             return trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~")
         }
-        #expect(fences.allSatisfy { $0.hasPrefix("```") }, "\(fences)")
-        #expect(fences.count == 2 * readme.blocks.count)
-        #expect(Set(readme.blocks.map(\.language)).isSubset(of: ["swift", "yaml", "diff"]))
+        #expect(fences.allSatisfy { $0.hasPrefix("```") }, "\(document.source.path): \(fences)")
+        #expect(fences.count == 2 * document.blocks.count, "\(document.source.path)")
+        #expect(Set(document.blocks.map(\.language)).isSubset(of: ["swift", "yaml", "diff", "sh"]))
     }
 
     @Test("the comment the README shows is the one its Dangerfile leaves on its pull request")
@@ -108,11 +122,11 @@ struct ReadmeTests {
         // The log line the README quotes, from this run.
         let checking = "Async loaders: checking Sources/Feed/FeedLoader.swift"
         #expect(run.error.contains(checking + "\n"), "\(run.error)")
-        #expect(try Readme().text.contains(checking))
+        #expect(try Document(Document.readme).text.contains(checking))
         // The summary, less the footer, which a comment in CI has its own of.
         let printed = run.output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
             .prefix { !$0.hasPrefix("<sub>") }
-        let shown = try Readme().section("comment").filter { !$0.isEmpty }
+        let shown = try Document(Document.readme).section("comment").filter { !$0.isEmpty }
             .map { $0 == ">" ? "" : String($0.dropFirst(2)) }
         let sha = try #require(shown.first?.split(separator: " ").last)
         let expected = printed.map { $0.replacing(/on [0-9a-f]{7}$/, with: "on \(sha)") }
@@ -126,7 +140,7 @@ struct ReadmeTests {
         let base = try repository.commit(Self.scopesBase, message: "Base")
         let head = try repository.commit(Self.scopesHead, message: "Head")
         let diff = try repository.diff(from: base, to: head)
-        let readme = try Readme()
+        let readme = try Document(Document.readme)
         #expect(try readme.block("scopes-diff").text + "\n" == diff, "\(diff)")
         #expect(try readme.block("scopes-file").text + "\n" == Self.scopesHead["Sources/Feed/Feed.swift"])
         let context = try Context.fixture(diff: diff, files: Self.scopesHead)
@@ -155,7 +169,7 @@ struct ReadmeTests {
         let outcome = await Checks.run(on: context)
         let findings = outcome.report?.findings ?? []
         #expect(findings.count == 2)
-        let readme = try Readme()
+        let readme = try Document(Document.readme)
         findings.forEach { finding in
             #expect(readme.text.contains(finding.text), "README.md doesn't quote \(finding.text)")
         }
@@ -166,13 +180,13 @@ struct ReadmeTests {
 
     @Test("the README's manifest asks for the Steward this package builds against, and SwiftPM reads it")
     func manifest() throws {
-        let manifest = try Readme().block("manifest").text
-        let own = try String(contentsOf: Readme.root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let manifest = try Document(Document.readme).block("manifest").text
+        let own = try String(contentsOf: Document.root.appendingPathComponent("Package.swift"), encoding: .utf8)
         let steward = try #require(own.split(separator: "\n").first { $0.contains("swift-steward.git") })
         #expect(manifest.contains(steward.trimmingCharacters(in: .whitespaces)))
         // The prose's versions: swift-syntax's range and Steward's minor
         // release, as Package.swift has them.
-        let readme = try Readme().text
+        let readme = try Document(Document.readme).text
         let range = try #require(own.firstMatch(of: /swift-syntax\.git", "([0-9.]+)"\.\.<"([0-9.]+)"/))
         #expect(readme.contains("`\(range.1)`") && readme.contains("`\(range.2)`"))
         let minor = try #require(steward.firstMatch(of: /from: "([0-9]+\.[0-9]+)\.0"/))
@@ -194,7 +208,7 @@ struct ReadmeTests {
 
     @Test("the README's workflow pins steward-action exactly and limits the job's time")
     func workflow() throws {
-        let workflow = try Readme().block("workflow").text
+        let workflow = try Document(Document.readme).block("workflow").text
         #expect(workflow.contains("uses: marosoaie/steward-action@v0.1.1"))
         #expect(workflow.contains("timeout-minutes:"))
     }
