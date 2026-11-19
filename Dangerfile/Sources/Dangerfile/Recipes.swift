@@ -59,35 +59,45 @@ extension Checks {
     /// A public struct has a public initializer, in its braces or in an
     /// extension of it in the same file, unless it holds a syntax node:
     /// such a value has no memberwise initializer, since its fields would
-    /// disagree with its node if set by hand (AGENTS.md). Types and
-    /// extensions match by their names with the types around them. It
+    /// disagree with its node if set by hand (AGENTS.md). An initializer
+    /// in a struct's braces is that struct's, even when `#if` branches
+    /// declare two of one name; one in an extension matches by the name
+    /// with the types around it, `Outer.Inner`, so an extension written
+    /// with the module's name or a generic type's sugar isn't matched. It
     /// reports on the whole file: a pull request can remove the initializer
     /// from an extension and leave the struct as it was.
     static let publicInitializers = Rule.swiftSource(
         "Public initializers", in: "Sources/**/*.swift", reporting: .changedFiles
     ) { file in
-        let initialized = Set(file.memberBlocks
-            .filter { block in block.members.contains { $0.kind == .initializer && $0.access.level >= .public } }
+        let hasPublicInitializer = { (members: [Member]) in
+            members.contains { $0.kind == .initializer && $0.access.level >= .public }
+        }
+        let extended = Set(file.memberBlocks
+            .filter { block in
+                guard case .extension = block.owner else { return false }
+                return hasPublicInitializer(block.members)
+            }
             .compactMap { $0.syntax.parent.map(qualifiedName(of:)) })
         return file.types
             .filter { $0.kind == .struct && $0.access.level >= .public }
             .filter { type in
-                !initialized.contains(qualifiedName(of: type.syntax)) && !type.members.contains { $0.name == "syntax" }
+                !hasPublicInitializer(type.members) && !extended.contains(qualifiedName(of: type.syntax))
+                    && !type.members.contains { $0.name == "syntax" }
             }
             .map { .warning("Public struct \(Markdown.codeSpan($0.name)) has no public initializer.", at: $0.location) }
     }
 
     /// The name of the type that `declaration` declares or extends, with
     /// the types and extensions around it: `Outer.Inner`.
-    static func qualifiedName(of declaration: some SyntaxProtocol) -> TypeName {
-        let names = sequence(first: Syntax(declaration), next: \.parent).compactMap { node -> String? in
+    static func qualifiedName(of declaration: some SyntaxProtocol) -> String {
+        sequence(first: Syntax(declaration), next: \.parent).compactMap { node -> String? in
             if let extended = node.as(ExtensionDeclSyntax.self) {
                 return extended.extendedType.trimmedDescription
             }
             guard node.isProtocol((any DeclGroupSyntax).self) else { return nil }
             return node.asProtocol((any NamedDeclSyntax).self)?.name.text
         }
-        return TypeName(names.reversed().joined(separator: "."))
+        .reversed().joined(separator: ".")
     }
     // Recipe: end
 

@@ -112,6 +112,24 @@ struct RecipesTests {
         ])
     }
 
+    @Test("an initializer in one #if branch's struct doesn't excuse the other branch's")
+    func conditionalStructs() async throws {
+        let source = """
+            #if os(macOS)
+            public struct Platform {
+                public init() {}
+            }
+            #else
+            public struct Platform {}
+            #endif
+
+            """
+        #expect(try await Self.findings(Checks.publicInitializers, "Sources/App/Platform.swift", source) == [
+            .warning("Public struct `Platform` has no public initializer.",
+                     at: Location(path: "Sources/App/Platform.swift", line: 6)),
+        ])
+    }
+
     @Test("a nested public struct matches its initializers by its name with the types around it")
     func nestedInitializers() async throws {
         let source = """
@@ -184,6 +202,7 @@ struct RecipesTests {
             let d = #"raw"# + "plain"
             let e = 1 + 2
             #sourceLocation(file: "x", line: 9223372036854775807)
+
             let f = "far" + "away"
             #sourceLocation()
 
@@ -192,8 +211,10 @@ struct RecipesTests {
         #expect(try await Self.findings(Checks.concatenatedLiterals, "Sources/App/Text.swift", source) == [
             .message(message, at: Location(path: "Sources/App/Text.swift", line: 1)),
             .message(message, at: Location(path: "Sources/App/Text.swift", line: 4)),
-            // At the line git counts, whatever #sourceLocation says.
-            .message(message, at: Location(path: "Sources/App/Text.swift", line: 7)),
+            // At the line git counts, whatever #sourceLocation says: two
+            // lines after a directive at Int.max, SourceLocationConverter
+            // overflows and ends the process.
+            .message(message, at: Location(path: "Sources/App/Text.swift", line: 8)),
         ])
     }
 }

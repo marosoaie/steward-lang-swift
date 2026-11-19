@@ -148,8 +148,10 @@ since steward-action keys its build cache on that file's hash; move it
 with `swift package update --package-path Dangerfile` when the root's
 dependencies move. docs/recipes.md shows its rules and docs/model.md the
 model; `DocsTests` holds the first to `Dangerfile/Sources` word for word,
-between `// Recipe:` markers, and the second to every public property of
-every model type.
+between `// Recipe:` markers, and the second's tables, both ways, to the
+public properties and cases of each top-level public model type, in its
+braces or an extension of it (nested types, such as
+`FunctionSignature.Parameter`, are prose only).
 
 ## Conventions
 

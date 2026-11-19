@@ -90,14 +90,19 @@ struct ReadmeTests {
 
     @Test("every fence in the README is one the checker reads: backticks at the start of a line, a language it knows")
     func fences() throws {
-        let readme = try Document(Document.readme)
-        let fences = readme.text.split(separator: "\n", omittingEmptySubsequences: false).filter { line in
+        try Self.expectFences(in: Document(Document.readme))
+    }
+
+    /// Every fence in `document` is one the checker reads: backticks at the
+    /// start of a line, opening a block in a language the tests know.
+    static func expectFences(in document: Document) throws {
+        let fences = document.text.split(separator: "\n", omittingEmptySubsequences: false).filter { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             return trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~")
         }
-        #expect(fences.allSatisfy { $0.hasPrefix("```") }, "\(fences)")
-        #expect(fences.count == 2 * readme.blocks.count)
-        #expect(Set(readme.blocks.map(\.language)).isSubset(of: ["swift", "yaml", "diff"]))
+        #expect(fences.allSatisfy { $0.hasPrefix("```") }, "\(document.source.path): \(fences)")
+        #expect(fences.count == 2 * document.blocks.count, "\(document.source.path)")
+        #expect(Set(document.blocks.map(\.language)).isSubset(of: ["swift", "yaml", "diff", "sh"]))
     }
 
     @Test("the comment the README shows is the one its Dangerfile leaves on its pull request")
