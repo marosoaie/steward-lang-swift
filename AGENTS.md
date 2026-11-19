@@ -96,6 +96,8 @@ STEWARD_SWIFT_ORACLE=1 swift test --filter SymbolGraphOracle   # builds the corp
 swift run -c release StewardSwiftBenchmark <directory>          # docs/performance.md
 xcodebuild test -scheme steward-lang-swift-Package -destination platform=macOS
 swiftlint lint --quiet             # must print nothing
+swift test --package-path Dangerfile                # this repository's own PR checks' rules
+swift run --package-path Dangerfile Dangerfile --base origin/main   # a dry run of them
 ```
 
 The build against the lowest swift-syntax, as CI runs it:
@@ -117,16 +119,34 @@ config or inline, always with a comment saying why.
 CI (`.github/workflows/ci.yml`) runs on every pull request, on each push
 to `main`, and weekly on `main`, so that a new dependency release that
 breaks the package shows between pull requests:
-`macos-tests` (the build with warnings as errors, `swift test`, and
-SwiftLint), `xcode-tests` (`xcodebuild test`), `linux-tests` (the build
+`macos-tests` (the build with warnings as errors, `swift test`,
+SwiftLint, and on a pull request this repository's own Dangerfile through
+steward-action, then the Dangerfile's tests), `xcode-tests`
+(`xcodebuild test`), `linux-tests` (the build
 and `swift test` in a `swift:6.2` container) and `lowest-swift-syntax`
 (the same, against the range's lower bound). Locally,
 `docker run -v "$PWD":/src swift:6.2` runs the Linux checks (copy the tree
 out of `/src` first so the two `.build` folders don't mix). GitHub's own
 actions are used at their major version tags, such as
 `actions/checkout@v7`, which move with each release; an action still at
-0.x, where a minor release may break, is pinned to an exact tag or a SHA.
-The workflow token is read-only.
+0.x, where a minor release may break, is pinned to an exact tag or a SHA:
+steward-action at `v0.1.1`. The workflow token is read-only, but for
+`macos-tests`, whose Steward step posts the summary comment
+(`pull-requests: write`).
+
+`Dangerfile/` is this repository's own pull request checks: a package of
+its own, like a user's, but depending on the checkout it sits in
+(`path: ".."`), so every pull request is checked by its own model and
+rules, and the root manifest never sees it. Its rules are the build's and
+SwiftLint's diagnostics on changed lines (from `build.log` and
+`swiftlint.log`, which `macos-tests` writes) and AGENTS.md's conventions
+as Swift rules (`Recipes.swift`). Its `Package.resolved` is committed,
+since steward-action keys its build cache on that file's hash; move it
+with `swift package update --package-path Dangerfile` when the root's
+dependencies move. docs/recipes.md shows its rules and docs/model.md the
+model; `DocsTests` holds the first to `Dangerfile/Sources` word for word,
+between `// Recipe:` markers, and the second to every public property of
+every model type.
 
 ## Conventions
 

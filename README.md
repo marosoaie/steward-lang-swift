@@ -538,6 +538,9 @@ has the rest.
 
 ## More
 
+- [docs/model.md](docs/model.md): every type and property a rule reads.
+- [docs/recipes.md](docs/recipes.md): this repository's own conventions
+  as rules, which check its pull requests.
 - [AGENTS.md](AGENTS.md): how the package is built and tested.
 - [SECURITY.md](SECURITY.md): reading source a pull request controls.
 - [docs/performance.md](docs/performance.md): how fast a file is read.

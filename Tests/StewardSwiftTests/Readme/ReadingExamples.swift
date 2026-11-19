@@ -5,7 +5,7 @@ import Testing
 /// markers is the README's block, word for word.
 @Suite("The README: what a rule can read")
 struct ReadingExamples {
-    @Test("functions")
+    @Test("a function's name, access, effects, return type, parameters and attributes are read")
     func functions() throws {
         // README: read-functions
         let file = try SwiftFile(source: """
@@ -32,7 +32,7 @@ struct ReadingExamples {
         // README: end
     }
 
-    @Test("types")
+    @Test("a type's kind, finality, inherited types, attributes and access are read")
     func types() throws {
         // README: read-types
         let file = try SwiftFile(source: """
@@ -50,7 +50,7 @@ struct ReadingExamples {
         // README: end
     }
 
-    @Test("member blocks and members")
+    @Test("a member block's members are read in order, and an extension with its conformances")
     func members() throws {
         // README: read-members
         let file = try SwiftFile(source: """
@@ -75,7 +75,7 @@ struct ReadingExamples {
         // README: end
     }
 
-    @Test("members under #if")
+    @Test("members under #if are read in every branch, and say so")
     func conditionalMembers() throws {
         // README: read-conditional-members
         let file = try SwiftFile(source: """
@@ -94,7 +94,7 @@ struct ReadingExamples {
         // README: end
     }
 
-    @Test("imports")
+    @Test("an import's module, attributes, access, kind, path and condition are read")
     func imports() throws {
         // README: read-imports
         let file = try SwiftFile(source: """
