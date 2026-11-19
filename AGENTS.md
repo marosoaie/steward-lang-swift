@@ -194,6 +194,21 @@ tests that need it. The same corpus checks the scopes' index against a
 search of every unit, and a finding at each model value's location
 against a change to its lines.
 
+README.md's examples are compiled and run: each Swift block is the text
+between `// README: <name>` and `// README: end` in
+`Tests/ReadmeDangerfile` (the README's Dangerfile and worked rules, an
+executable target that isn't a product) or `Tests/StewardSwiftTests/Readme`,
+named by the `<!-- README: <name> -->` line before it, and `ReadmeTests`
+fails when the two differ, when a block has no example, or when an
+example isn't shown. It also runs the Dangerfile and holds the comment the
+README shows to what it prints, the scopes' table to what each scope
+keeps on the diff shown (which git writes), the quoted skip and refusal
+to the rule's, and the manifest to this package's Steward requirement and
+to `swift package dump-package`. Change the README and its examples
+together. The scopes' diff in the README has context lines that are a
+single space: an editor that trims trailing whitespace breaks them, and
+`ReadmeTests` says so.
+
 The scope tests take their diffs from git, a base and a head committed in
 a temporary repository (`TestRepository`, with Steward's `git diff`
 options), and the end-to-end tests run `SwiftRulesFixture`, a Dangerfile

@@ -25,7 +25,8 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
   and a few thousand overflow a 64 MiB one; 100,000 nested interpolations
   exhaust memory.
 - In a debug build, which is how a Dangerfile is usually built, the
-  parser's nesting limit is 20, not 256, and it's about 30 times slower.
+  parser's nesting limit is 20, not 256, and a read is about 40 times
+  slower (docs/performance.md).
 
 ## What SwiftFile does
 
