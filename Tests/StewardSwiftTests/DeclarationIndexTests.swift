@@ -117,18 +117,27 @@ struct DeclarationIndexTests {
         #expect(!keeps(1, 5))
     }
 
-    @Test("items under ninety-five nested #if blocks are indexed in time linear in the file")
+    @Test("items under ninety-five nested #if blocks are indexed about as fast as the same items under none")
     func deepConditionalCompilation() throws {
-        let depth = 95
-        let items = String(repeating: "f()\n", count: 20_000)
-        let source = String(repeating: "#if A\n", count: depth) + items + String(repeating: "#endif\n", count: depth)
-        let file = try SwiftFile(source: source, path: Sample.path)
+        // A gate and a limit of the test's own: under a loaded run's other
+        // tests, this read can outlast its deadline, and a runaway on the
+        // shared gate would refuse every later read in the process.
+        let read = { (depth: Int) throws -> SwiftFile in
+            let items = String(repeating: "f()\n", count: 20_000)
+            let source = String(repeating: "#if A\n", count: depth) + items
+                + String(repeating: "#endif\n", count: depth)
+            return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
+        }
+        let (flat, deep) = (try read(0), try read(95))
+        // The faster of three, each way, to see past a loaded machine. The
+        // walk this replaced took about six times as long under 95 `#if`s.
         let clock = ContinuousClock()
-        var count = 0
-        let elapsed = clock.measure { count = DeclarationIndex(file: file).units.count }
-        #expect(count == 20_000)
-        // About 0.5 s in a debug build on an M4; the walk it replaced took 5.
-        #expect(elapsed < .seconds(3), "took \(elapsed)")
+        let time = { (file: SwiftFile) in
+            (0..<3).map { _ in clock.measure { _ = DeclarationIndex(file: file) } }.min() ?? .zero
+        }
+        #expect(DeclarationIndex(file: deep).units.count == 20_000)
+        let (flatTime, deepTime) = (time(flat), time(deep))
+        #expect(deepTime < flatTime * 2 + .milliseconds(100), "\(deepTime) under 95 #if, \(flatTime) under none")
     }
 
     @Test("a finding at another spelling of the file's path is another file's, as git tells paths apart by bytes")
@@ -178,8 +187,11 @@ struct DeclarationIndexTests {
     /// inside its parent.
     private static func checkLookups(_ files: [Corpus.File]) {
         files.forEach { corpusFile in
-            guard let file = try? SwiftFile(source: corpusFile.source, path: corpusFile.path) else {
-                Issue.record("\(corpusFile.path) was refused")
+            let file: SwiftFile
+            do {
+                file = try SwiftFile(source: corpusFile.source, path: corpusFile.path)
+            } catch {
+                Issue.record("\(corpusFile.path) was refused: \(error)")
                 return
             }
             let index = DeclarationIndex(file: file)
@@ -203,8 +215,11 @@ struct DeclarationIndexTests {
     /// only the line after it does.
     private static func checkModelValues(_ files: [Corpus.File]) {
         files.forEach { corpusFile in
-            guard let file = try? SwiftFile(source: corpusFile.source, path: corpusFile.path) else {
-                Issue.record("\(corpusFile.path) was refused")
+            let file: SwiftFile
+            do {
+                file = try SwiftFile(source: corpusFile.source, path: corpusFile.path)
+            } catch {
+                Issue.record("\(corpusFile.path) was refused: \(error)")
                 return
             }
             let values = file.functions.map { ($0.location, $0.lines) } + file.types.map { ($0.location, $0.lines) }
