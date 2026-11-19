@@ -54,9 +54,9 @@ Steward's `GitDiffKit` and `PullRequestHosting`) and `SwiftSyntax` with
 it. Every example in this README is compiled and run by this package's
 tests, so they can't drift from the API.
 
-Nothing is released yet; 0.1.0 will be the first release. Until 1.0, a
-minor release may change the API, so a Dangerfile depends on one minor
-release.
+steward-lang-swift is at 0.1. Until 1.0, a minor release may change the
+API, so a Dangerfile depends on one minor release,
+`.upToNextMinor(from: "0.1.0")`, as [Setting up](#setting-up) shows.
 
 ## Setting up
 

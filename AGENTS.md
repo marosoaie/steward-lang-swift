@@ -271,6 +271,5 @@ records its numbers. Benchmark in a release build only.
   release with `.upToNextMinor(from:)`. They are cut by hand with
   `gh release create`, as git-diff-parser's are: a library has no binary
   to package, so there is no release workflow. The maintainer drives
-  version numbers and tags releases; never tag unprompted. The tag scheme
-  (`0.1.0`, as git-diff-parser's, or `v0.1.0`, as swift-steward's) is the
-  maintainer's to choose before the first release.
+  version numbers and tags releases; never tag unprompted. Tags are
+  `vX.Y.Z`, as swift-steward's are; `v0.1.0` is the first.
