@@ -84,7 +84,10 @@ own is internal; one that holds a syntax node gets none, by design. The
 rule looks for an initializer in the type's braces and in an extension of
 it in the same file, matching each by its name with the types around it
 (`Outer.Inner`), and knows a type that holds a node by its `syntax`
-property:
+property. It reports on the whole file, `.changedFiles`: a pull request can
+take the initializer out of an extension and leave the struct as it was.
+Every public struct here has one, so only a pull request that breaks the
+rule hears from it:
 
 <!-- Recipe: public-initializers -->
 ```swift
@@ -92,8 +95,12 @@ property:
 /// extension of it in the same file, unless it holds a syntax node:
 /// such a value has no memberwise initializer, since its fields would
 /// disagree with its node if set by hand (AGENTS.md). Types and
-/// extensions match by their names with the types around them.
-static let publicInitializers = Rule.swiftSource("Public initializers", in: "Sources/**/*.swift") { file in
+/// extensions match by their names with the types around them. It
+/// reports on the whole file: a pull request can remove the initializer
+/// from an extension and leave the struct as it was.
+static let publicInitializers = Rule.swiftSource(
+    "Public initializers", in: "Sources/**/*.swift", reporting: .changedFiles
+) { file in
     let initialized = Set(file.memberBlocks
         .filter { block in block.members.contains { $0.kind == .initializer && $0.access.level >= .public } }
         .compactMap { $0.syntax.parent.map(qualifiedName(of:)) })
@@ -121,20 +128,34 @@ static func qualifiedName(of declaration: some SyntaxProtocol) -> TypeName {
 
 ## Tests named by a sentence
 
-swift-testing names a test with a sentence that says what holds:
+swift-testing names a test with a sentence that says what holds. The
+rule reads the name from the string literal's syntax, so a raw literal
+(`#"…"#`) or a multiline one reads as the text it holds:
 
 <!-- Recipe: sentence-test-names -->
 ```swift
 /// A test's name is a sentence in `@Test("…")`: not a bare `@Test`,
-/// which names it after its function, nor a single word.
+/// which names it after its function, nor a single word. The name is
+/// the attribute's first argument, read from its string literal's
+/// syntax, so a raw or a multiline literal reads as the text it holds.
 static let sentenceTestNames = Rule.swiftSource("Sentence test names", in: "Tests/**/*.swift") { file in
     file.functions.compactMap { function in
-        guard let test = function.attributes.first(where: { $0.name == "Test" }) else { return nil }
-        let arguments = test.arguments ?? ""
-        let name = arguments.hasPrefix("\"") ? arguments.dropFirst().prefix { $0 != "\"" } : ""
-        guard !name.contains(" ") else { return nil }
+        guard let test = function.attributes.first(where: { $0.name == "Test" }),
+              !testName(of: function.syntax).contains(" ")
+        else { return nil }
         return .warning("Test \(Markdown.codeSpan(function.name)) needs a sentence for a name.", at: test.location)
     }
+}
+
+/// The text of the string literal `@Test` names `function` with, or ""
+/// when it names none.
+static func testName(of function: FunctionDeclSyntax) -> String {
+    let test = function.attributes.compactMap { $0.as(AttributeSyntax.self) }
+        .first { $0.attributeName.trimmedDescription == "Test" }
+    guard case .argumentList(let arguments) = test?.arguments, let first = arguments.first, first.label == nil,
+          let literal = first.expression.as(StringLiteralExprSyntax.self)
+    else { return "" }
+    return literal.segments.compactMap { $0.as(StringSegmentSyntax.self)?.content.text }.joined()
 }
 ```
 

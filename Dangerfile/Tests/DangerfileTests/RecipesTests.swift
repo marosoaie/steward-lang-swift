@@ -84,6 +84,33 @@ struct RecipesTests {
         ])
     }
 
+    @Test("a public initializer removed from an extension is a finding at the struct the pull request left alone")
+    func initializerRemovedFromExtension() async throws {
+        let base = "public struct Item {}\n\nextension Item {\n    public init() {}\n}\n"
+        let head = "public struct Item {}\n\nextension Item {\n    init() {}\n}\n"
+        let path = "Sources/App/Item.swift"
+        let context = try Context.fixture(
+            diff: """
+                diff --git a/\(path) b/\(path)
+                index 1111111..2222222 100644
+                --- a/\(path)
+                +++ b/\(path)
+                @@ -1,5 +1,5 @@
+                 public struct Item {}
+                \u{20}
+                 extension Item {
+                -    public init() {}
+                +    init() {}
+                 }
+                """ + "\n",
+            files: [path: head]
+        )
+        #expect(base != head)
+        #expect(try await Checks.publicInitializers.evaluate(context) == [
+            .warning("Public struct `Item` has no public initializer.", at: Location(path: path, line: 1)),
+        ])
+    }
+
     @Test("a nested public struct matches its initializers by its name with the types around it")
     func nestedInitializers() async throws {
         let source = """
@@ -124,12 +151,26 @@ struct RecipesTests {
             @Test("a sentence, with arguments", arguments: [1, 2])
             func parameterized(value: Int) {}
 
+            @Test(#"a "quoted" value is read"#)
+            func raw() {}
+
+            @Test(\"""
+                a sentence over
+                two lines
+                \""")
+            func multiline() {}
+
+            @Test(.serialized)
+            func traitOnly() {}
+
             """
         #expect(try await Self.findings(Checks.sentenceTestNames, "Tests/AppTests/AppTests.swift", source) == [
             .warning("Test `bare` needs a sentence for a name.",
                      at: Location(path: "Tests/AppTests/AppTests.swift", line: 4)),
             .warning("Test `word` needs a sentence for a name.",
                      at: Location(path: "Tests/AppTests/AppTests.swift", line: 7)),
+            .warning("Test `traitOnly` needs a sentence for a name.",
+                     at: Location(path: "Tests/AppTests/AppTests.swift", line: 22)),
         ])
     }
 
