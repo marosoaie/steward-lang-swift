@@ -93,6 +93,15 @@ extension AccessLevel {
     }
 }
 
+extension DeclModifierSyntax {
+    /// The modifier as the model's `modifiers` spell it: its name, and its
+    /// detail in parentheses with nothing around it, such as `private(set)`
+    /// for `private( set )`.
+    var normalizedSpelling: String {
+        name.text + (detail.map { "(\($0.detail.text))" } ?? "")
+    }
+}
+
 extension AccessLevel.Level {
     /// The level a modifier in `modifiers` writes out, if one does.
     init?(writtenIn modifiers: DeclModifierListSyntax) {

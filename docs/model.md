@@ -48,6 +48,7 @@ A `func`. Initializers, subscripts and accessors aren't functions here;
 | `returnType` | The `TypeName` after `->`, or nil. |
 | `parameters` | Its `Parameter`s, in order. |
 | `attributes` | Its `Attribute`s, in order. |
+| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `private(set)`. |
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `location` | The line of its name. |
 | `lines` | From its first attribute or modifier to its closing brace. |
@@ -105,6 +106,7 @@ A struct, class, enum, actor or protocol (`kind`, a `TypeDeclaration.Kind`).
 | `isFinal` | Whether it's `final`. |
 | `inheritedTypes` | The `TypeName`s after the colon, in order: superclass, protocols, raw value type. |
 | `attributes` | Its `Attribute`s, in order. |
+| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `private(set)`. |
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `members` | The `Member`s of its own braces, in source order; an extension's are in `SwiftFile.memberBlocks`. |
 | `location` | The line of its name. |
@@ -141,6 +143,7 @@ One name a member block declares: `var a, b` is two.
 | `isStatic` | Whether it's `static` or `class`. |
 | `isConditional` | Whether it's inside an `#if` in its block. |
 | `attributes` | Its declaration's `Attribute`s, in order, shared by every name it declares. |
+| `modifiers` | Its declaration's modifiers, in order, shared by every name it declares, such as `weak` or `private(set)`. |
 | `documentation` | Its declaration's doc comment's text, shared by every name it declares, or nil. |
 | `location` | The line of its name. |
 | `lines` | The whole declaration's lines. |

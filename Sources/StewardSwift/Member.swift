@@ -55,6 +55,12 @@ public struct Member: Sendable, Hashable {
     /// make it so (SECURITY.md).
     public var attributes: [Attribute]
 
+    /// The modifiers, in order, each spelled with nothing inside its
+    /// parentheses: `weak`, `lazy`, `override`, `private(set)`. They're the
+    /// declaration's, shared by the names it declares, as its attributes
+    /// are. `access` and `isStatic` are typed views of some of them.
+    public var modifiers: [String]
+
     /// The doc comment's text, read as `FunctionDeclaration.documentation`
     /// is, or nil when there's none: the declaration's, shared by the names
     /// it declares, as its attributes are, at the same cost to a check that
@@ -69,8 +75,8 @@ public struct Member: Sendable, Hashable {
     /// without the comments before it.
     public var lines: ClosedRange<Int>
 
-    /// Creates a member, with no attributes and no doc comment unless
-    /// `attributes` and `documentation` give them.
+    /// Creates a member, with no attributes, modifiers or doc comment
+    /// unless `attributes`, `modifiers` and `documentation` give them.
     public init(
         kind: Kind,
         name: String,
@@ -78,6 +84,7 @@ public struct Member: Sendable, Hashable {
         isStatic: Bool,
         isConditional: Bool,
         attributes: [Attribute] = [],
+        modifiers: [String] = [],
         documentation: String? = nil,
         location: Location,
         lines: ClosedRange<Int>
@@ -88,6 +95,7 @@ public struct Member: Sendable, Hashable {
         self.isStatic = isStatic
         self.isConditional = isConditional
         self.attributes = attributes
+        self.modifiers = modifiers
         self.documentation = documentation
         self.location = location
         self.lines = lines
@@ -118,13 +126,14 @@ extension Member {
         path: String,
         lines: SourceLines
     ) -> [Member] {
-        let modifiers = declaration.asProtocol((any WithModifiersSyntax).self)?.modifiers ?? []
-        let isStatic = modifiers.contains {
+        let modifierList = declaration.asProtocol((any WithModifiersSyntax).self)?.modifiers ?? []
+        let modifiers = modifierList.map(\.normalizedSpelling)
+        let isStatic = modifierList.contains {
             $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
         }
         let access = declaration.is(EnumCaseDeclSyntax.self) || declaration.is(DeinitializerDeclSyntax.self)
             ? AccessLevel(implicitMemberOf: owner)
-            : AccessLevel(of: declaration, modifiers: modifiers)
+            : AccessLevel(of: declaration, modifiers: modifierList)
         let attributes = declaration.asProtocol((any WithAttributesSyntax).self)
             .map { Attribute.all(in: $0.attributes, path: path, lines: lines) } ?? []
         let documentation = Documentation.text(of: declaration, lines: lines)
@@ -137,6 +146,7 @@ extension Member {
                 isStatic: isStatic,
                 isConditional: isConditional,
                 attributes: attributes,
+                modifiers: modifiers,
                 documentation: documentation,
                 location: Location(path: path, line: lines.line(of: declared.token)),
                 lines: span
