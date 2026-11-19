@@ -98,6 +98,8 @@ struct DeclarationIndexTests {
             ("var x = { func inner() {}\n    print(1)\n    print(2)\n}()\n", 1),
             ("@available(*, deprecated)\nvar x = { func inner() {}\n    print(1)\n}()\n", 2),
             ("struct B<T>\n    where T: Equatable { var x = 1\n    var y = 2\n}\n", 1),
+            ("var a = 0,\n    b = { func inner() {}\n        return 0\n    }()\n", 2),
+            ("let (a,\n     b) = ({ func inner() {}\n    return 0\n}(), 1)\n", 2),
         ]
     )
     func header(source: String, line: Int) throws {

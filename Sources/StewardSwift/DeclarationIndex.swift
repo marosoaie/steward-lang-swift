@@ -18,8 +18,8 @@ struct DeclarationIndex: Sendable {
         /// the one after the line of `{` to the line of `}`; nil for any
         /// other unit, and for braces with no line between them.
         var body: ClosedRange<Int>?
-        /// Its lines up to the ones of its name and of its `{`, if it has
-        /// them: they are its own, whatever else starts on them.
+        /// Its lines up to the last of its names' and of its `{`s', if it
+        /// has them: they are its own, whatever else starts on them.
         var header: ClosedRange<Int>
         /// The innermost unit around this one.
         var parent: Int?
@@ -153,39 +153,42 @@ struct DeclarationIndex: Sendable {
     }
 
     /// The last line of `node`'s header: the latest of its first token's,
-    /// its name's and its `{`'s.
+    /// the last line of each name it declares, and its `{`s'.
     private static func headerEnd(of node: Syntax, in lines: SourceLines) -> Int {
-        let marks = [Syntax(node), name(of: node), openingBrace(of: node).map(Syntax.init)].compactMap(\.self)
-        return marks.map { lines.line(of: $0) }.max() ?? lines.line(of: node)
+        let marks = names(of: node).map { lines.lines(of: $0).upperBound }
+            + openingBraces(of: node).map { lines.line(of: $0) }
+        return ([lines.line(of: node)] + marks).max() ?? lines.line(of: node)
     }
 
-    /// The token or pattern that names the declaration `node`, if it is one.
-    private static func name(of node: Syntax) -> Syntax? {
+    /// The tokens and patterns that name what the declaration `node`
+    /// declares: every binding's pattern, tuples included, for a property.
+    private static func names(of node: Syntax) -> [Syntax] {
         if let named = node.asProtocol((any NamedDeclSyntax).self) {
-            return Syntax(named.name)
+            return [Syntax(named.name)]
         }
         return switch node.as(SyntaxEnum.self) {
-        case .variableDecl(let variable): variable.bindings.first.map { Syntax($0.pattern) }
-        case .initializerDecl(let initializer): Syntax(initializer.initKeyword)
-        case .deinitializerDecl(let deinitializer): Syntax(deinitializer.deinitKeyword)
-        case .subscriptDecl(let subscriptDecl): Syntax(subscriptDecl.subscriptKeyword)
-        case .extensionDecl(let extensionDecl): Syntax(extensionDecl.extendedType)
-        default: nil
+        case .variableDecl(let variable): variable.bindings.map { Syntax($0.pattern) }
+        case .enumCaseDecl(let enumCase): enumCase.elements.map { Syntax($0.name) }
+        case .initializerDecl(let initializer): [Syntax(initializer.initKeyword)]
+        case .deinitializerDecl(let deinitializer): [Syntax(deinitializer.deinitKeyword)]
+        case .subscriptDecl(let subscriptDecl): [Syntax(subscriptDecl.subscriptKeyword)]
+        case .extensionDecl(let extensionDecl): [Syntax(extensionDecl.extendedType)]
+        default: []
         }
     }
 
-    /// The `{` that opens `node`'s members, body or accessors, if it has one.
-    private static func openingBrace(of node: Syntax) -> TokenSyntax? {
+    /// The `{`s that open `node`'s members, body or accessors.
+    private static func openingBraces(of node: Syntax) -> [TokenSyntax] {
         if let group = node.asProtocol((any DeclGroupSyntax).self) {
-            return group.memberBlock.leftBrace
+            return [group.memberBlock.leftBrace]
         }
         return switch node.as(SyntaxEnum.self) {
-        case .functionDecl(let function): function.body?.leftBrace
-        case .initializerDecl(let initializer): initializer.body?.leftBrace
-        case .deinitializerDecl(let deinitializer): deinitializer.body?.leftBrace
-        case .subscriptDecl(let subscriptDecl): subscriptDecl.accessorBlock?.leftBrace
-        case .variableDecl(let variable): variable.bindings.first { $0.accessorBlock != nil }?.accessorBlock?.leftBrace
-        default: nil
+        case .functionDecl(let function): [function.body?.leftBrace].compactMap(\.self)
+        case .initializerDecl(let initializer): [initializer.body?.leftBrace].compactMap(\.self)
+        case .deinitializerDecl(let deinitializer): [deinitializer.body?.leftBrace].compactMap(\.self)
+        case .subscriptDecl(let subscriptDecl): [subscriptDecl.accessorBlock?.leftBrace].compactMap(\.self)
+        case .variableDecl(let variable): variable.bindings.compactMap { $0.accessorBlock?.leftBrace }
+        default: []
         }
     }
 
