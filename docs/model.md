@@ -145,8 +145,15 @@ One name a member block declares: `var a, b` is two.
 | `attributes` | Its declaration's `Attribute`s, in order, shared by every name it declares. |
 | `modifiers` | Its declaration's modifiers, in order, shared by every name it declares, such as `weak` or `private(set)`. |
 | `documentation` | Its declaration's doc comment's text, shared by every name it declares, or nil. |
+| `property` | A property's `Member.Property`, nil for every other kind. |
 | `location` | The line of its name. |
 | `lines` | The whole declaration's lines. |
+
+A `Member.Property` holds a property's details as written:
+- `isConstant`, whether it's a `let`.
+- `isStored`, whether it has no accessors or only `willSet` and `didSet`. A property wrapper, or a macro such as `@Observable`, changes the real storage, which the syntax doesn't show.
+- `type`, the `TypeName` it writes. It's nil when the type is inferred or the name is in a tuple pattern; in `var a, b: Int`, `a` has `Int`.
+- `initialValue`, its value's spelling, or nil.
 
 ## `Import`
 

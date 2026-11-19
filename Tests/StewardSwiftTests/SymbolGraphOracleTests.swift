@@ -6,8 +6,9 @@ import Testing
 /// The model against the compiler: every function swift-argument-parser's
 /// symbol graph lists, at minimum access level `private`, is read at the
 /// same line with the same name and argument labels, `async`, `throws`,
-/// access level and `static`; and every function, type and member it
-/// lists, with the same doc comment.
+/// access level and `static`; every function, type and member it lists,
+/// with the same doc comment; and every property, as a `let` or a `var`,
+/// stored or not where the graph shows it, with the type it writes.
 ///
 /// What the corpus doesn't exercise: the graph lists no local functions,
 /// and no function in it takes its access level from an extension's
@@ -72,6 +73,57 @@ struct SymbolGraphOracleTests {
             return nil
         }
         #expect(differences.isEmpty, "\(differences.joined(separator: "\n"))")
+    }
+
+    @Test("every property in the compiler's symbol graph is a let or a var, stored or not, typed as written")
+    func propertiesMatchTheSymbolGraph() async throws {
+        let graph = try await SymbolGraphOracle.graph.value
+        let properties = graph.documented.filter { $0.kind == "swift.property" || $0.kind == "swift.type.property" }
+        #expect(properties.count > 600)
+        let byFile = Dictionary(grouping: properties, by: \.path)
+        let differences = try byFile.keys.sorted().flatMap { path -> [String] in
+            let data = try Data(contentsOf: graph.root.appendingPathComponent(path))
+            let file = try SwiftFile(source: String(decoding: data, as: UTF8.self), path: path)
+            let members = file.memberBlocks.flatMap(\.members)
+            return (byFile[path] ?? []).compactMap { expected in
+                let atLine = members.first { $0.location.line == expected.line && $0.name == expected.name }
+                guard let member = atLine, let property = member.property else { return "\(expected): not read" }
+                return Self.propertyDifference(property, of: member, expected)
+            }
+        }
+        #expect(
+            differences.isEmpty,
+            "\(differences.count) differences:\n\(differences.prefix(40).joined(separator: "\n"))"
+        )
+    }
+
+    /// What the model reads differently from the graph's declaration of a
+    /// property, or nil. The graph prints the type it infers, so the type
+    /// is compared only where the source writes one. It prints `{ get }` or
+    /// `{ get set }` after a property that isn't stored, but also after one
+    /// with a property wrapper (which it prints first, `@Option var …`),
+    /// whose storage the wrapper replaces, and after one whose setter is
+    /// less visible (`private(set)`), which it prints `{ get }`; for those,
+    /// whether it's stored as written isn't compared.
+    static func propertyDifference(
+        _ property: Member.Property,
+        of member: Member,
+        _ expected: SymbolGraphOracle.Documented
+    ) -> String? {
+        let isConstant: Bool = expected.keywords.contains("let")
+        let showsStorage = !expected.declaration.hasPrefix("@") && !member.modifiers.contains { $0.hasSuffix("(set)") }
+        let isStored: Bool = showsStorage ? !expected.declaration.hasSuffix("}") : property.isStored
+        let afterColon: Substring = expected.declaration.split(separator: ": ", maxSplits: 1).dropFirst().first ?? ""
+        let printedType = String(afterColon.split(separator: " {", maxSplits: 1).first ?? afterColon)
+        let constantDifference: String? = property.isConstant == isConstant
+            ? nil : "let: read \(property.isConstant), compiler \(isConstant)"
+        let storedDifference: String? = property.isStored == isStored
+            ? nil : "stored: read \(property.isStored), compiler \(isStored)"
+        let typeDifference: String? = property.type.flatMap { type in
+            type == TypeName(printedType) ? nil : "type: read \(type), compiler \(printedType)"
+        }
+        let differing = [constantDifference, storedDifference, typeDifference].compactMap { $0 }
+        return differing.isEmpty ? nil : "\(expected) `\(expected.declaration)`: \(differing.joined(separator: ", "))"
     }
 
     /// What the model reads differently from the graph for `expected`'s doc

@@ -34,7 +34,7 @@ enum SymbolGraphOracle {
     }
 
     /// A symbol the graph lists at a place in the source, with its doc
-    /// comment.
+    /// comment and its declaration.
     struct Documented: Sendable, CustomStringConvertible {
         var path: String
         var line: Int
@@ -45,6 +45,11 @@ enum SymbolGraphOracle {
         /// whitespace-only lines at the start and the end dropped, or nil
         /// when the graph has none.
         var documentation: String?
+        /// The declaration as the graph prints it, such as
+        /// `static let shared: Feed` or `var count: Int { get }`.
+        var declaration: String
+        /// The keywords in the declaration, such as `static` and `let`.
+        var keywords: Set<String>
 
         var description: String {
             "\(path):\(line) \(kind) \(name)"
@@ -249,7 +254,9 @@ private struct GraphSymbol: Decodable {
             line: location.position.line + 1,
             name: String((pathComponents?.last ?? names.title).prefix { $0 != "(" }),
             kind: kind.identifier,
-            documentation: docComment?.text
+            documentation: docComment?.text,
+            declaration: (declarationFragments ?? []).map(\.spelling).joined(),
+            keywords: Set((declarationFragments ?? []).filter { $0.kind == "keyword" }.map(\.spelling))
         )
     }
 
