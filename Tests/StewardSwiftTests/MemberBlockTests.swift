@@ -5,8 +5,8 @@ import Testing
 @Suite("Member blocks and members")
 struct MemberBlockTests {
     @Test("member blocks are every type's and extension's, in source order, with their owners")
-    func owners() throws {
-        let blocks = try Sample.file("""
+    func owners() async throws {
+        let blocks = try await Sample.file("""
             struct Loader {
                 enum State {}
             }
@@ -29,8 +29,8 @@ struct MemberBlockTests {
     }
 
     @Test("a block has its owner's inherited types and attributes, an extension's conformances among them")
-    func ownersConformances() throws {
-        let blocks = try Sample.file("""
+    func ownersConformances() async throws {
+        let blocks = try await Sample.file("""
             @MainActor
             final class Cache: NSObject {}
             @available(macOS 26, *)
@@ -41,8 +41,8 @@ struct MemberBlockTests {
     }
 
     @Test("members are listed in source order, one for each name, with their kinds")
-    func membersInOrder() throws {
-        let block = try #require(try Sample.file("""
+    func membersInOrder() async throws {
+        let block = try #require(try await Sample.file("""
             struct S {
                 typealias ID = String
                 static let shared = S()
@@ -79,14 +79,14 @@ struct MemberBlockTests {
             ("fileprivate class S { deinit {} }", .internal),
         ]
     )
-    func implicitMemberAccess(source: String, level: AccessLevel.Level) throws {
-        let member = try #require(try Sample.file(source).memberBlocks.first?.members.first)
+    func implicitMemberAccess(source: String, level: AccessLevel.Level) async throws {
+        let member = try #require(try await Sample.file(source).memberBlocks.first?.members.first)
         #expect(member.access == AccessLevel(level: level, isExplicit: false))
     }
 
     @Test("an enum's cases are members, with the enum's access level")
-    func enumCases() throws {
-        let block = try #require(try Sample.file("""
+    func enumCases() async throws {
+        let block = try #require(try await Sample.file("""
             public enum State {
                 case idle, loading
                 case done(Int)
@@ -103,8 +103,8 @@ struct MemberBlockTests {
     }
 
     @Test("a protocol's requirements are members")
-    func protocolRequirements() throws {
-        let block = try #require(try Sample.file("""
+    func protocolRequirements() async throws {
+        let block = try #require(try await Sample.file("""
             protocol Loader {
                 associatedtype Output
                 var name: String { get }
@@ -117,8 +117,8 @@ struct MemberBlockTests {
     }
 
     @Test("every #if branch's members are read, in source order, and marked as conditional")
-    func conditionalMembers() throws {
-        let block = try #require(try Sample.file("""
+    func conditionalMembers() async throws {
+        let block = try #require(try await Sample.file("""
             struct S {
                 func always() {}
                 #if os(macOS)
@@ -139,8 +139,8 @@ struct MemberBlockTests {
     }
 
     @Test("a block's functions are its own members, not functions in their bodies")
-    func ownFunctionsOnly() throws {
-        let block = try #require(try Sample.file("""
+    func ownFunctionsOnly() async throws {
+        let block = try #require(try await Sample.file("""
             struct S {
                 func outer() {
                     func inner() {}
@@ -155,8 +155,8 @@ struct MemberBlockTests {
     }
 
     @Test("a member's location is its name's line, and its lines are its declaration's")
-    func memberLocations() throws {
-        let block = try #require(try Sample.file("""
+    func memberLocations() async throws {
+        let block = try #require(try await Sample.file("""
             struct S {
                 /// The name.
                 @available(*, deprecated)
@@ -171,8 +171,8 @@ struct MemberBlockTests {
     }
 
     @Test("an ordering rule reads a block's functions in order")
-    func orderingRecipe() throws {
-        let blocks = try Sample.file("""
+    func orderingRecipe() async throws {
+        let blocks = try await Sample.file("""
             struct S {
                 func a() {}
                 private func b() {}

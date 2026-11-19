@@ -6,8 +6,8 @@ import Testing
 @Suite("The scopes' units", .timeLimit(.minutes(10)))
 struct DeclarationIndexTests {
     @Test("the units are the model's declarations and the top-level items, each with its parent and braces")
-    func units() throws {
-        let file = try Sample.file("""
+    func units() async throws {
+        let file = try await Sample.file("""
             import Foundation
 
             /// Doc.
@@ -34,8 +34,8 @@ struct DeclarationIndexTests {
     }
 
     @Test("braces on one line hold no line, and a member on the line of `{` is outside them")
-    func bodies() throws {
-        let file = try Sample.file("""
+    func bodies() async throws {
+        let file = try await Sample.file("""
             struct A {}
             struct B { var x = 1
                 var y = 2 }
@@ -48,9 +48,10 @@ struct DeclarationIndexTests {
     }
 
     @Test("this package's files: the lookup is the last unit in source order that holds the line")
-    func ownFiles() {
-        Self.checkLookups(Corpus.ownFiles)
-        Self.checkModelValues(Corpus.ownFiles)
+    func ownFiles() async {
+        let files = await Self.read(Corpus.ownFiles).map(\.file)
+        Self.checkLookups(files)
+        Self.checkModelValues(files)
     }
 
     @Test(
@@ -58,16 +59,15 @@ struct DeclarationIndexTests {
         .enabled(if: Corpus.isNetworkAllowed)
     )
     func argumentParserFiles() async throws {
-        let files = try await Corpus.argumentParserFiles()
+        let files = await Self.read(try await Corpus.argumentParserFiles()).map(\.file)
         Self.checkLookups(files)
         Self.checkModelValues(files)
     }
 
     @Test("what changedDeclarations keeps, changedTypes keeps, on random changes to real files", arguments: 0..<4)
-    func nesting(seed: UInt64) throws {
+    func nesting(seed: UInt64) async {
         var generator = SeededGenerator(seed: seed)
-        try Corpus.ownFiles.forEach { corpusFile in
-            let file = try SwiftFile(source: corpusFile.source, path: corpusFile.path)
+        await Self.read(Corpus.ownFiles).forEach { corpusFile, file in
             let count = file.sourceLines.count
             let random = { (generator: inout SeededGenerator) in
                 LineRangeSet((0..<Int.random(in: 0...4, using: &generator)).map { _ in
@@ -104,8 +104,8 @@ struct DeclarationIndexTests {
             ("var a = {\n    struct Local {\n    }; return 0 }(), b =\n    0\n", 3),
         ]
     )
-    func header(source: String, line: Int) throws {
-        let file = try SwiftFile(source: source, path: Sample.path)
+    func header(source: String, line: Int) async throws {
+        let file = try await SwiftFile(source: source, path: Sample.path)
         let index = DeclarationIndex(file: file)
         let keeps = { (line: Int, changed: Int) in
             ScopedFindings(
@@ -125,10 +125,10 @@ struct DeclarationIndexTests {
     }
 
     @Test("siblings that share a line each judge a finding on it")
-    func sharedLine() throws {
+    func sharedLine() async throws {
         // A pull request that adds the attribute changes `a`, not `b`, and
         // both start on line 2.
-        let file = try SwiftFile(source: "@MainActor\nfunc a() {}; func b() {}\nfunc c() {}\n", path: Sample.path)
+        let file = try await SwiftFile(source: "@MainActor\nfunc a() {}; func b() {}\nfunc c() {}\n", path: Sample.path)
         let index = DeclarationIndex(file: file)
         let scoped = ScopedFindings(
             path: file.path,
@@ -144,11 +144,11 @@ struct DeclarationIndexTests {
     }
 
     @Test("a finding at another spelling of the file's path is another file's, as git tells paths apart by bytes")
-    func pathBytes() throws {
+    func pathBytes() async throws {
         let precomposed = "Sources/Caf\u{E9}.swift"
         let decomposed = "Sources/Cafe\u{301}.swift"
         #expect(precomposed == decomposed)
-        let file = try SwiftFile(source: "func a() {}\nfunc b() {}\n", path: precomposed)
+        let file = try await SwiftFile(source: "func a() {}\nfunc b() {}\n", path: precomposed)
         let scoped = ScopedFindings(
             file: file,
             changed: ChangedFile(
@@ -164,10 +164,10 @@ struct DeclarationIndexTests {
     }
 
     @Test("a file of 20,000 one-line members, each with a finding, is scoped in bounded time")
-    func manyUnits() throws {
+    func manyUnits() async throws {
         let members = (0..<20_000).map { "    var v\($0) = \($0)" }.joined(separator: "\n")
         let source = "struct S {\n\(members)\n}\n"
-        let file = try SwiftFile(source: source, path: Sample.path)
+        let file = try await SwiftFile(source: source, path: Sample.path)
         let changed = ChangedFile(
             path: file.path,
             contents: Array(source.utf8),
@@ -185,18 +185,26 @@ struct DeclarationIndexTests {
         #expect(elapsed < .seconds(10), "took \(elapsed)")
     }
 
+    /// Each of `files` read, with the file it came from; a refusal is an
+    /// issue.
+    static func read(_ files: [Corpus.File]) async -> [(corpus: Corpus.File, file: SwiftFile)] {
+        // An imperative loop, since each read is awaited.
+        var read: [(corpus: Corpus.File, file: SwiftFile)] = []
+        for corpusFile in files {
+            do {
+                read.append((corpusFile, try await SwiftFile(source: corpusFile.source, path: corpusFile.path)))
+            } catch {
+                Issue.record("\(corpusFile.path) was refused: \(error)")
+            }
+        }
+        return read
+    }
+
     /// For every line of each file, `innermost(containing:)` against a
     /// search of every unit; and units in order of their first lines, each
     /// inside its parent.
-    private static func checkLookups(_ files: [Corpus.File]) {
-        files.forEach { corpusFile in
-            let file: SwiftFile
-            do {
-                file = try SwiftFile(source: corpusFile.source, path: corpusFile.path)
-            } catch {
-                Issue.record("\(corpusFile.path) was refused: \(error)")
-                return
-            }
+    private static func checkLookups(_ files: [SwiftFile]) {
+        files.forEach { file in
             let index = DeclarationIndex(file: file)
             let units = index.units
             #expect(units.map(\.lines.lowerBound) == units.map(\.lines.lowerBound).sorted(), "\(file.path)")
@@ -216,15 +224,8 @@ struct DeclarationIndexTests {
     /// For every function, type, member, extension and import: a finding at
     /// its location is kept when any of its lines changes, and not when
     /// only the line after it does.
-    private static func checkModelValues(_ files: [Corpus.File]) {
-        files.forEach { corpusFile in
-            let file: SwiftFile
-            do {
-                file = try SwiftFile(source: corpusFile.source, path: corpusFile.path)
-            } catch {
-                Issue.record("\(corpusFile.path) was refused: \(error)")
-                return
-            }
+    private static func checkModelValues(_ files: [SwiftFile]) {
+        files.forEach { file in
             let values = file.functions.map { ($0.location, $0.lines) } + file.types.map { ($0.location, $0.lines) }
                 + file.memberBlocks.flatMap { $0.members.map { ($0.location, $0.lines) } }
                 + file.memberBlocks.map { ($0.location, $0.lines) }
@@ -254,9 +255,11 @@ struct DeclarationIndexTests {
 /// The index's cost on dense and deeply nested files.
 extension DeclarationIndexTests {
     @Test("thousands of declarations on one line, each with a finding, are scoped in bounded time")
-    func manyOnOneLine() throws {
+    func manyOnOneLine() async throws {
         let source = (0..<20_000).map { "var v\($0) = \($0)" }.joined(separator: "; ") + "\n"
-        let file = try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
+        let file = try await SwiftFile.read(
+            source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate()
+        )
         let scoped = ScopedFindings(
             path: file.path,
             scope: .changedDeclarations,
@@ -276,17 +279,19 @@ extension DeclarationIndexTests {
     }
 
     @Test("items under ninety-five nested #if blocks are indexed about as fast as the same items under none")
-    func deepConditionalCompilation() throws {
+    func deepConditionalCompilation() async throws {
         // A gate and a limit of the test's own: under a loaded run's other
         // tests, this read can outlast its deadline, and a runaway on the
         // shared gate would refuse every later read in the process.
-        let read = { (depth: Int) throws -> SwiftFile in
+        let read = { (depth: Int) async throws -> SwiftFile in
             let items = String(repeating: "f()\n", count: 20_000)
             let source = String(repeating: "#if A\n", count: depth) + items
                 + String(repeating: "#endif\n", count: depth)
-            return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
+            return try await SwiftFile.read(
+                source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate()
+            )
         }
-        let (flat, deep) = (try read(0), try read(95))
+        let (flat, deep) = (try await read(0), try await read(95))
         // The faster of three, each way, to see past a loaded machine. The
         // walk this replaced took about six times as long under 95 `#if`s.
         let clock = ContinuousClock()

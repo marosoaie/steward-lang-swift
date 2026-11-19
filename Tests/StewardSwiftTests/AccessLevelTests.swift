@@ -16,8 +16,8 @@ struct AccessLevelTests {
             ("static public func f() {}", .public),
         ]
     )
-    func explicit(source: String, level: AccessLevel.Level) throws {
-        #expect(try Sample.function(source).access == AccessLevel(level: level, isExplicit: true))
+    func explicit(source: String, level: AccessLevel.Level) async throws {
+        #expect(try await Sample.function(source).access == AccessLevel(level: level, isExplicit: true))
     }
 
     @Test(
@@ -44,16 +44,17 @@ struct AccessLevelTests {
             ("#if DEBUG\npublic extension S { func f() {} }\n#endif", .public),
         ]
     )
-    func implicit(source: String, level: AccessLevel.Level) throws {
-        #expect(try Sample.function(named: "f", in: source).access == AccessLevel(level: level, isExplicit: false))
+    func implicit(source: String, level: AccessLevel.Level) async throws {
+        let function = try await Sample.function(named: "f", in: source)
+        #expect(function.access == AccessLevel(level: level, isExplicit: false))
     }
 
     @Test(
         "a modifier that limits only a setter isn't the declaration's level",
         arguments: ["private(set) func f() {}", "public private(set) func f() {}"]
     )
-    func setterModifier(source: String) throws {
-        let access = try Sample.function(source).access
+    func setterModifier(source: String) async throws {
+        let access = try await Sample.function(source).access
         #expect(access.isExplicit == source.hasPrefix("public"))
         #expect(access.level == (source.hasPrefix("public") ? .public : .internal))
     }

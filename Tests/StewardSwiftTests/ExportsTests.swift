@@ -7,11 +7,12 @@ import Testing
 @Suite("One import")
 struct ExportsTests {
     @Test("a file that imports only StewardSwift writes a rule and reads every name it needs")
-    func oneImport() throws {
+    func oneImport() async throws {
         let rule: Rule = Rule.swiftSource("Functions", in: PathPattern("Sources/**")) { file in
             file.functions.map { Finding.message($0.name, at: $0.location) }
         }
-        let location: Steward.Location = try SwiftFile(source: "func a() {}\n", path: "A.swift").functions[0].location
+        let file = try await SwiftFile(source: "func a() {}\n", path: "A.swift")
+        let location: Steward.Location = file.functions[0].location
         let lines: LineRangeSet = LineRangeSet([1...2])
         let node: SourceFileSyntax? = nil
         #expect(rule.name == "Functions")

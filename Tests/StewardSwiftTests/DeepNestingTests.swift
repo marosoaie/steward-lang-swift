@@ -10,8 +10,8 @@ struct DeepNestingTests {
     /// Reads `source` with a gate of its own and a generous time limit:
     /// these tests check that nothing traps, not how long a parse takes on
     /// a busy machine, and a runaway here mustn't refuse other tests' files.
-    static func read(_ source: String) throws(SwiftFile.Refusal) -> SwiftFile {
-        try SwiftFile.read(source: source, path: "Deep.swift", timeLimit: .seconds(120), gate: ParseGate())
+    static func read(_ source: String) async throws(SwiftFile.Refusal) -> SwiftFile {
+        try await SwiftFile.read(source: source, path: "Deep.swift", timeLimit: .seconds(120), gate: ParseGate())
     }
 
     /// A shape, repeated `depth` times inside itself.
@@ -45,8 +45,12 @@ struct DeepNestingTests {
     )
     func deep(shape: Shape) async {
         let source = shape.source(depth: 20_000)
-        let outcome = await Task.detached {
-            Result { () throws(SwiftFile.Refusal) in try Self.read(source) }
+        let outcome = await Task.detached { () -> Result<SwiftFile, SwiftFile.Refusal> in
+            do throws(SwiftFile.Refusal) {
+                return .success(try await Self.read(source))
+            } catch {
+                return .failure(error)
+            }
         }.value
         switch outcome {
         case .success(let file):
@@ -62,38 +66,40 @@ struct DeepNestingTests {
     }
 
     @Test("source nested past the parser's limit is refused, so nothing after it is lost")
-    func pastTheParserLimit() throws {
+    func pastTheParserLimit() async throws {
         // Past its limit the parser leaves the rest of the file as
         // unexpected text, so `hidden` would be missing from the model.
         let source = Shape.functions.source(depth: 300) + "func hidden() {}\n"
-        #expect(throws: SwiftFile.Refusal.nestedPastParserLimit(limit: 256)) { try Self.read(source) }
-        let shown = try Self.read(Shape.functions.source(depth: 60) + "func shown() {}\n")
+        await #expect(throws: SwiftFile.Refusal.nestedPastParserLimit(limit: 256)) { try await Self.read(source) }
+        let shown = try await Self.read(Shape.functions.source(depth: 60) + "func shown() {}\n")
         #expect(shown.functions.last?.name == "shown")
     }
 
     @Test("a tree at the depth limit can be walked by a recursive visitor on a 512 KiB stack")
-    func visitorAtTheLimit() throws {
+    func visitorAtTheLimit() async throws {
         // `let x = a` and n calls make a tree 2n + 9 levels deep, so this is
         // the longest chain the limit lets through. Raise the limit past
         // what the visitor survives, and this test crashes.
         let calls = (SwiftFile.maximumTreeDepth - 9) / 2
-        let file = try Self.read(Shape.postfixChain.source(depth: calls))
+        let file = try await Self.read(Shape.postfixChain.source(depth: calls))
         #expect(file.syntax.depth(cappedAt: .max) > SwiftFile.maximumTreeDepth - 3)
         let walked = LargeStack.runOnSmallStack { NodeCounter.count(file.syntax) }
         #expect(walked ?? 0 > calls * 4)
-        #expect(throws: SwiftFile.Refusal.self) { try Self.read(Shape.postfixChain.source(depth: calls + 2)) }
+        await #expect(throws: SwiftFile.Refusal.self) {
+            try await Self.read(Shape.postfixChain.source(depth: calls + 2))
+        }
     }
 
     @Test("a tree deeper than rules can walk is refused, and one within the limit is read")
-    func treeDepth() throws {
-        let refusal = #expect(throws: SwiftFile.Refusal.self) {
-            try Self.read(Shape.postfixChain.source(depth: 2_000))
+    func treeDepth() async throws {
+        let refusal = await #expect(throws: SwiftFile.Refusal.self) {
+            try await Self.read(Shape.postfixChain.source(depth: 2_000))
         }
         if case .syntaxTreeTooDeep(let depth, let limit)? = refusal {
             #expect(depth > limit && limit == 512)
         } else {
             Issue.record("expected syntaxTreeTooDeep, got \(String(describing: refusal))")
         }
-        _ = try Self.read(Shape.postfixChain.source(depth: 200))
+        _ = try await Self.read(Shape.postfixChain.source(depth: 200))
     }
 }

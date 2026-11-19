@@ -30,13 +30,13 @@ struct RefusalTests {
     ]
 
     @Test("a shape nested past its limit is refused before parsing, with its line and limit", arguments: shapes)
-    func nestingTooDeep(source: String, refusal: Refusal) {
-        #expect(throws: refusal) { try SwiftFile(source: source, path: "Sources/Deep.swift") }
+    func nestingTooDeep(source: String, refusal: Refusal) async {
+        await #expect(throws: refusal) { try await SwiftFile(source: source, path: "Sources/Deep.swift") }
     }
 
     @Test("source with syntax errors isn't refused: it's read, and says so")
-    func syntaxErrorsAreRead() throws {
-        let file = try SwiftFile(source: "func load( {\nfunc after() {}", path: "Sources/Broken.swift")
+    func syntaxErrorsAreRead() async throws {
+        let file = try await SwiftFile(source: "func load( {\nfunc after() {}", path: "Sources/Broken.swift")
         #expect(file.syntax.hasError)
         #expect(file.functions.map(\.name).contains("after"))
     }
@@ -57,12 +57,12 @@ struct RefusalTests {
         // debug build, far more than a millisecond.
         let slow = String(repeating: "let value = first + second * third - fourth\n", count: 24_000)
         let gate = ParseGate()
-        #expect(throws: Refusal.timedOut(limit: .milliseconds(1))) {
-            try SwiftFile.read(source: slow, path: "Slow.swift", timeLimit: .milliseconds(1), gate: gate)
+        await #expect(throws: Refusal.timedOut(limit: .milliseconds(1))) {
+            try await SwiftFile.read(source: slow, path: "Slow.swift", timeLimit: .milliseconds(1), gate: gate)
         }
         #expect(!gate.isOpen)
-        #expect(throws: Refusal.earlierParseStillRunning) {
-            try SwiftFile.read(source: "func f() {}", path: "Next.swift", timeLimit: .seconds(10), gate: gate)
+        await #expect(throws: Refusal.earlierParseStillRunning) {
+            try await SwiftFile.read(source: "func f() {}", path: "Next.swift", timeLimit: .seconds(10), gate: gate)
         }
         // The runaway ends on its own, and the gate opens again.
         let clock = ContinuousClock()
@@ -71,7 +71,9 @@ struct RefusalTests {
             try await Task.sleep(for: .milliseconds(50))
         }
         #expect(gate.isOpen)
-        let file = try SwiftFile.read(source: "func f() {}", path: "Next.swift", timeLimit: .seconds(10), gate: gate)
+        let file = try await SwiftFile.read(
+            source: "func f() {}", path: "Next.swift", timeLimit: .seconds(10), gate: gate
+        )
         #expect(file.functions.map(\.name) == ["f"])
     }
 
@@ -88,5 +90,31 @@ struct RefusalTests {
     )
     func descriptions(refusal: Refusal, text: String) {
         #expect(refusal.description.contains(text), "\(refusal.description)")
+    }
+}
+
+/// A read suspends its caller rather than holding its thread.
+@Suite("A read's caller")
+struct ReadCallerTests {
+    @Test("a slow read leaves its caller's executor free: work queued on the main actor runs meanwhile")
+    @MainActor
+    func suspends() async throws {
+        // On the main actor, a serial executor: if the read held its thread,
+        // the ticker couldn't run until it returned.
+        var ticks = 0
+        let ticker = Task { @MainActor in
+            while !Task.isCancelled {
+                ticks += 1
+                try? await Task.sleep(for: .milliseconds(1))
+            }
+        }
+        // Half a second or more to parse in a debug build, on a gate and a
+        // limit of the test's own.
+        let slow = String(repeating: "let value = first + second * third - fourth\n", count: 12_000)
+        let before = ticks
+        _ = try await SwiftFile.read(source: slow, path: "Slow.swift", timeLimit: .seconds(300), gate: ParseGate())
+        let during = ticks - before
+        ticker.cancel()
+        #expect(during > 5, "the main actor ran \(during) ticks during the read")
     }
 }

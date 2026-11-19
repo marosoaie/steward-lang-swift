@@ -46,10 +46,16 @@ let clock = ContinuousClock()
 
 /// The median of `runs` timings of `work`, after one run to warm up: the
 /// middle one, or the lower of the two in the middle for an even count.
-func median(_ work: () -> Void) -> Duration {
-    work()
-    let times = (0..<runs).map { _ in clock.measure(work) }.sorted()
-    return times[(times.count - 1) / 2]
+func median(_ work: () async -> Void) async -> Duration {
+    await work()
+    // An imperative loop: each run awaits the one before it.
+    var times: [Duration] = []
+    for _ in 0..<runs {
+        let start = clock.now
+        await work()
+        times.append(start.duration(to: clock.now))
+    }
+    return times.sorted()[(times.count - 1) / 2]
 }
 
 /// `value` with one decimal, without `String(format:)`, whose C varargs
@@ -74,23 +80,24 @@ func megabytesPerSecond(bytes: Int, _ duration: Duration) -> String {
 
 print("| File | KB | Parse (ms) | SwiftFile (ms) | SwiftFile (MB/s) |")
 print("|---|---:|---:|---:|---:|")
-sources.prefix(largest).forEach { source in
-    let parse = median {
+// Imperative loops: each read is awaited in turn.
+for source in sources.prefix(largest) {
+    let parse = await median {
         var parser = Parser(source.text, maximumNestingLevel: 256)
         _ = SourceFileSyntax.parse(from: &parser)
     }
-    let read = median { _ = try? SwiftFile(source: source.text, path: source.path) }
+    let read = await median { _ = try? await SwiftFile(source: source.text, path: source.path) }
     print("| `\(source.path)` | \(source.bytes / 1_000) | \(milliseconds(parse)) | \(milliseconds(read)) "
         + "| \(megabytesPerSecond(bytes: source.bytes, read)) |")
 }
 
 let totalBytes = sources.map(\.bytes).reduce(0, +)
 var refused = 0
-let whole = clock.measure {
-    sources.forEach { source in
-        if (try? SwiftFile(source: source.text, path: source.path)) == nil { refused += 1 }
-    }
+let start = clock.now
+for source in sources where (try? await SwiftFile(source: source.text, path: source.path)) == nil {
+    refused += 1
 }
+let whole = start.duration(to: clock.now)
 print("")
 print("All \(sources.count) files, \(totalBytes / 1_000) KB: \(milliseconds(whole)) ms once each, "
     + "\(megabytesPerSecond(bytes: totalBytes, whole)) MB/s, \(refused) refused.")

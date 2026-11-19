@@ -32,7 +32,8 @@ errors is a skip, through `Finding.skipped`, and the check never sees it.
 Rules are syntactic: a type is matched by how it's spelled, not by what
 it resolves to, which would take a build. The model of a file is the
 package's own value types; raw swift-syntax nodes are an escape hatch, not
-the main API. `SwiftFile(source:path:)` parses a file and reads its
+the main API. `await SwiftFile(source:path:)` parses a file, its caller
+suspended while a thread of its own parses, and reads its
 `imports` (`Import`), `types` (`TypeDeclaration`), `memberBlocks`
 (`MemberBlock`, a type's or an extension's `Member`s in source order, for
 ordering rules) and `functions` (`FunctionDeclaration`, with its
@@ -180,7 +181,10 @@ so `SwiftFile` defends it:
   bounded stack, memory and time. It's a heuristic, not a lexer.
 - The parse runs on a thread with a 64 MiB stack (`LargeStack`): on
   macOS, `async` code runs on 512 KiB threads. It's no larger, since Linux
-  can refuse a far larger reservation.
+  can refuse a far larger reservation. The caller's task suspends while it
+  runs (`LargeStack.value`, a continuation resumed by the thread or by the
+  deadline's timer), so a read holds no thread of the cooperative pool;
+  `ReadCallerTests` holds that.
 - `maximumNestingLevel` is 256 in every build configuration (swift-syntax
   defaults to 20 in a debug build, where a Dangerfile usually runs).
 - A source that nests past the parser's limit is refused: the parser

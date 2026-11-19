@@ -4,7 +4,7 @@ import SwiftSyntax
 /// A Swift source file's declarations, read from its syntax.
 ///
 /// ```swift
-/// let file = try SwiftFile(source: source, path: "Sources/App/Loader.swift")
+/// let file = try await SwiftFile(source: source, path: "Sources/App/Loader.swift")
 /// let findings = file.functions
 ///     .filter { $0.returnType == "LoadResult" && !$0.isAsync }
 ///     .map { Finding.failure("\(Markdown.codeSpan($0.name)) should be `async`.", at: $0.location) }
@@ -58,17 +58,18 @@ public struct SwiftFile: Sendable {
     /// says whether it had to repair anything. That isn't a refusal.
     ///
     /// The parse runs on a thread of its own, with a 64 MiB stack, and the
-    /// calling thread waits for it. The time limit bounds the wait, not
-    /// the parse: a parse that runs out of time runs on until it ends or
-    /// the process exits, and can still use up stack or memory meanwhile.
+    /// calling task suspends meanwhile, holding no thread of the pool that
+    /// runs `async` code. The time limit bounds the wait, not the parse: a
+    /// parse that runs out of time runs on until it ends or the process
+    /// exits, and can still use up stack or memory meanwhile.
     ///
     /// - Throws: `Refusal` when the source nests a shape too deeply for
     ///   the parser, nests past the parser's limit of 256, its tree is
     ///   too deep for a recursive walk, the parse
     ///   runs out of time (two seconds, and 50 µs a byte), or an earlier
     ///   parse ran out of time and still runs.
-    public init(source: String, path: String) throws(Refusal) {
-        self = try Self.read(
+    public init(source: String, path: String) async throws(Refusal) {
+        self = try await Self.read(
             source: source,
             path: path,
             timeLimit: Self.timeLimit(forUTF8Count: source.utf8.count),
@@ -92,12 +93,19 @@ public struct SwiftFile: Sendable {
 
     /// Reads `source` within `timeLimit`, unless `gate` says an earlier
     /// parse still runs.
-    static func read(source: String, path: String, timeLimit: Duration, gate: ParseGate) throws(Refusal) -> SwiftFile {
+    static func read(
+        source: String,
+        path: String,
+        timeLimit: Duration,
+        gate: ParseGate
+    ) async throws(Refusal) -> SwiftFile {
         if let excess = NestingScan.firstExcess(in: source) {
             throw .nestingTooDeep(excess.shape, line: excess.line, limit: excess.shape.limit)
         }
         guard gate.isOpen else { throw .earlierParseStillRunning }
-        let outcome = LargeStack.run(timeLimit: timeLimit, gate: gate) { parseOnThisThread(source: source, path: path) }
+        let outcome = await LargeStack.value(timeLimit: timeLimit, gate: gate) {
+            parseOnThisThread(source: source, path: path)
+        } then: { $0 }
         guard let outcome else { throw .timedOut(limit: timeLimit) }
         return try outcome.get()
     }

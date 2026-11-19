@@ -15,15 +15,15 @@ struct TypeDeclarationTests {
             ("struct `Type` {}", .struct, "Type"),
         ]
     )
-    func kinds(source: String, kind: TypeDeclaration.Kind, name: String) throws {
-        let types = try Sample.file(source).types
+    func kinds(source: String, kind: TypeDeclaration.Kind, name: String) async throws {
+        let types = try await Sample.file(source).types
         #expect(types.map(\.kind) == [kind])
         #expect(types.map(\.name) == [name])
     }
 
     @Test("types are read at any depth, in source order")
-    func anyDepth() throws {
-        let types = try Sample.file("""
+    func anyDepth() async throws {
+        let types = try await Sample.file("""
             struct Outer {
                 enum Inner {
                     protocol Deepest {}
@@ -45,14 +45,14 @@ struct TypeDeclarationTests {
     }
 
     @Test("a type says whether it's final")
-    func isFinal() throws {
-        let types = try Sample.file("final class A {}\nclass B {}\npublic final class C {}\nstruct D {}").types
+    func isFinal() async throws {
+        let types = try await Sample.file("final class A {}\nclass B {}\npublic final class C {}\nstruct D {}").types
         #expect(types.map(\.isFinal) == [true, false, true, false])
     }
 
     @Test("inherited types are spelled as written, in order")
-    func inheritedTypes() throws {
-        let type = try #require(try Sample.file("""
+    func inheritedTypes() async throws {
+        let type = try #require(try await Sample.file("""
             final class Loader: NSObject, @unchecked Sendable, Codable & Hashable {}
             """).types.first)
         #expect(type.inheritedTypes == ["NSObject", "@unchecked Sendable", "Codable & Hashable"])
@@ -68,14 +68,14 @@ struct TypeDeclarationTests {
             ("public extension Outer { struct S {} }", AccessLevel(level: .public, isExplicit: false)),
         ]
     )
-    func access(source: String, access: AccessLevel) throws {
-        let type = try #require(try Sample.file(source).types.first { $0.name == "S" })
+    func access(source: String, access: AccessLevel) async throws {
+        let type = try #require(try await Sample.file(source).types.first { $0.name == "S" })
         #expect(type.access == access)
     }
 
     @Test("attributes, location and lines are read as for functions")
-    func attributesLocationLines() throws {
-        let type = try #require(try Sample.file("""
+    func attributesLocationLines() async throws {
+        let type = try #require(try await Sample.file("""
             import Foundation
 
             /// A loader.
@@ -93,8 +93,8 @@ struct TypeDeclarationTests {
     }
 
     @Test("a type's members are its own block's, not its extensions'")
-    func members() throws {
-        let file = try Sample.file("""
+    func members() async throws {
+        let file = try await Sample.file("""
             struct Loader {
                 var url: URL
                 func load() {}

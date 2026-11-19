@@ -14,8 +14,8 @@ struct TypeNameTests {
             ("@escaping @Sendable (Int) async throws -> Void", "@escaping @Sendable (Int) async throws -> Void"),
         ]
     )
-    func spelling(type: String, spelling: String) throws {
-        let function = try Sample.function("func f(_ x: \(type)) {}")
+    func spelling(type: String, spelling: String) async throws {
+        let function = try await Sample.function("func f(_ x: \(type)) {}")
         #expect(function.parameters.first?.type.spelling == spelling)
     }
 

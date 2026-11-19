@@ -5,8 +5,8 @@ import Testing
 @Suite("Swift files")
 struct SwiftFileTests {
     @Test("functions are every func declaration at any depth, in source order")
-    func functionsAtAnyDepth() throws {
-        let functions = try Sample.functions(in: """
+    func functionsAtAnyDepth() async throws {
+        let functions = try await Sample.functions(in: """
             func topLevel() {
                 func nested() {
                     func deeper() {}
@@ -48,8 +48,8 @@ struct SwiftFileTests {
     }
 
     @Test("initializers, subscripts, accessors and closures aren't functions")
-    func notFunctions() throws {
-        let functions = try Sample.functions(in: """
+    func notFunctions() async throws {
+        let functions = try await Sample.functions(in: """
             struct S {
                 init() {}
                 deinit {}
@@ -63,8 +63,8 @@ struct SwiftFileTests {
     }
 
     @Test("the path is the one given, and every location names it")
-    func path() throws {
-        let file = try SwiftFile(source: "func a() {}\nfunc b() {}", path: "Sources/Feature/Loader.swift")
+    func path() async throws {
+        let file = try await SwiftFile(source: "func a() {}\nfunc b() {}", path: "Sources/Feature/Loader.swift")
         #expect(file.path == "Sources/Feature/Loader.swift")
         #expect(file.functions.map(\.location.path) == ["Sources/Feature/Loader.swift", "Sources/Feature/Loader.swift"])
     }
@@ -79,14 +79,14 @@ struct SwiftFileTests {
             "\u{FEFF}func bom() {}",
         ]
     )
-    func invalidSource(source: String) throws {
-        let file = try Sample.file(source)
+    func invalidSource(source: String) async throws {
+        let file = try await Sample.file(source)
         #expect(file.syntax.description == source)
     }
 
     @Test("a function in source that doesn't parse cleanly is still read")
-    func damagedSource() throws {
-        let file = try Sample.file("""
+    func damagedSource() async throws {
+        let file = try await Sample.file("""
             func before() {}
             let x = = 1
             func after() async {}
@@ -107,7 +107,7 @@ struct SwiftFileTests {
             ("let s = \"\"\"\n\n\"\"\"\nfunc a() {}", [4]),
         ]
     )
-    func lineCounting(source: String, lines: [Int]) throws {
-        #expect(try Sample.functions(in: source).map(\.location.line) == lines)
+    func lineCounting(source: String, lines: [Int]) async throws {
+        #expect(try await Sample.functions(in: source).map(\.location.line) == lines)
     }
 }

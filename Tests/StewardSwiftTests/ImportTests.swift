@@ -5,8 +5,8 @@ import Testing
 @Suite("Imports")
 struct ImportTests {
     @Test("imports are read with their modules, paths, kinds, attributes, access and lines")
-    func imports() throws {
-        let imports = try Sample.file("""
+    func imports() async throws {
+        let imports = try await Sample.file("""
             import Foundation
             @testable import App
             @_exported public import Steward
@@ -51,8 +51,8 @@ struct ImportTests {
     }
 
     @Test("a layering rule reads imports, scoped and submodule imports among them")
-    func layeringRecipe() throws {
-        let file = try SwiftFile(
+    func layeringRecipe() async throws {
+        let file = try await SwiftFile(
             source: """
                 import GitDiffKit
                 import BuildLogKit

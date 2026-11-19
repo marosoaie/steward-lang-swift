@@ -43,7 +43,8 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
   every rule with one construct.
 - **It parses on a stack of its own.** The parse runs on a thread with a
   64 MiB stack, whatever thread asked, with the parser's nesting limit at
-  256 in every build configuration. The package's own walks over the
+  256 in every build configuration; the asking task suspends meanwhile,
+  holding no thread of the pool that runs `async` code. The package's own walks over the
   tree keep their own stack, so a tree as deep as the source is long
   can't overflow one.
 - **It reads source that isn't valid Swift.** Truncated, mutated or

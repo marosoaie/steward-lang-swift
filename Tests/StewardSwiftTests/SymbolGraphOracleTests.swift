@@ -25,11 +25,11 @@ struct SymbolGraphOracleTests {
             .filter { $0.value.count > 1 }
         #expect(twice.isEmpty, "listed more than once: \(twice.keys.sorted())")
         let byFile = Dictionary(grouping: graph.functions, by: \.path)
-        let differences = try byFile.keys.sorted().flatMap { path -> [String] in
+        let differences = try await byFile.keys.sorted().asyncMap { path -> [String] in
             let data = try Data(contentsOf: graph.root.appendingPathComponent(path))
-            let file = try SwiftFile(source: String(decoding: data, as: UTF8.self), path: path)
+            let file = try await SwiftFile(source: String(decoding: data, as: UTF8.self), path: path)
             return (byFile[path] ?? []).compactMap { expected in Self.difference(expected, in: file) }
-        }
+        }.flatMap(\.self)
         #expect(
             differences.isEmpty,
             "\(differences.count) differences:\n\(differences.prefix(40).joined(separator: "\n"))"

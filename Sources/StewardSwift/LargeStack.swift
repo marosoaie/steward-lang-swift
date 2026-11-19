@@ -3,7 +3,7 @@ import Foundation
 import Synchronization
 
 /// Runs work on a thread of its own with a large stack, for as long as the
-/// caller is willing to wait.
+/// caller is willing to wait, without blocking the caller's thread.
 ///
 /// swift-syntax's parser recurses once per level of nesting, and on
 /// macOS the threads that run `async` code, where a Dangerfile's rules run,
@@ -13,54 +13,6 @@ import Synchronization
 /// since Linux can refuse a far larger reservation.
 enum LargeStack {
     static let size = 64 << 20
-
-    /// The value `work` returns, computed on a new thread with a `size`
-    /// stack while the calling thread waits, or nil when it isn't done
-    /// within `timeLimit`.
-    ///
-    /// Nothing can stop the thread, so work that runs out of time runs on
-    /// until it ends or the process exits, and its value is dropped.
-    /// `gate` counts it as a runaway meanwhile.
-    static func run<Value: Sendable>(
-        timeLimit: Duration? = nil,
-        gate: ParseGate? = nil,
-        _ work: @escaping @Sendable () -> Value
-    ) -> Value? {
-        let slot = Slot<Value>()
-        let done = DispatchSemaphore(value: 0)
-        let thread = Thread {
-            let value = work()
-            let wasAbandoned = slot.state.withLock { state in
-                guard case .waiting = state else { return true }
-                state = .finished(value)
-                return false
-            }
-            if wasAbandoned {
-                gate?.runawayEnded()
-            }
-            done.signal()
-        }
-        thread.stackSize = size
-        thread.start()
-        if let timeLimit {
-            guard done.wait(timeout: .now() + dispatchInterval(timeLimit)) == .success else {
-                // Under the slot's lock, so the thread can't end the runaway
-                // before it starts.
-                return slot.state.withLock { state in
-                    if case .finished(let value) = state { return value }
-                    state = .abandoned
-                    gate?.runawayStarted()
-                    return nil
-                }
-            }
-        } else {
-            done.wait()
-        }
-        return slot.state.withLock { state in
-            guard case .finished(let value) = state else { return nil }
-            return value
-        }
-    }
 
     /// What `use` makes of what `read` returns, both run on a new thread
     /// with a `size` stack, one after the other, or nil when `read` isn't
@@ -121,13 +73,6 @@ enum LargeStack {
         return .nanoseconds(Int(wholeSeconds) * 1_000_000_000 + Int(nanoseconds))
     }
 
-    /// Where the thread leaves its value, or learns that nobody waits for
-    /// it. A class, so that the thread and the caller share it; nothing
-    /// else holds one.
-    private final class Slot<Value: Sendable>: Sendable {
-        let state = Mutex<SlotState<Value>>(.waiting)
-    }
-
     /// Where `value(timeLimit:gate:reading:then:)`'s thread and timer meet.
     /// A class, so that both share it; nothing else holds one.
     private final class Hop: Sendable {
@@ -142,13 +87,6 @@ private enum HopPhase {
     /// The read ended in time, and what uses it runs, with no limit.
     case using
     /// The read ran out of time; nobody waits for it.
-    case abandoned
-}
-
-/// What a `LargeStack` thread has done with its work.
-private enum SlotState<Value: Sendable> {
-    case waiting
-    case finished(Value)
     case abandoned
 }
 

@@ -14,8 +14,8 @@ struct FunctionDeclarationTests {
             ("func load<T>(_ value: T) {}", "load"),
         ]
     )
-    func name(source: String, name: String) throws {
-        #expect(try Sample.function(source).name == name)
+    func name(source: String, name: String) async throws {
+        #expect(try await Sample.function(source).name == name)
     }
 
     @Test(
@@ -32,8 +32,8 @@ struct FunctionDeclarationTests {
             ("public static func f() async throws {}", true, true, true),
         ]
     )
-    func effects(source: String, isAsync: Bool, isThrowing: Bool, isStatic: Bool) throws {
-        let function = try Sample.function(source)
+    func effects(source: String, isAsync: Bool, isThrowing: Bool, isStatic: Bool) async throws {
+        let function = try await Sample.function(source)
         #expect(function.isAsync == isAsync)
         #expect(function.isThrowing == isThrowing)
         #expect(function.isStatic == isStatic)
@@ -51,13 +51,13 @@ struct FunctionDeclarationTests {
             ("func f() -> Void {}", "Void"),
         ] as [(String, TypeName?)]
     )
-    func returnType(source: String, returnType: TypeName?) throws {
-        #expect(try Sample.function(source).returnType == returnType)
+    func returnType(source: String, returnType: TypeName?) async throws {
+        #expect(try await Sample.function(source).returnType == returnType)
     }
 
     @Test("parameters keep their labels, names, types and default values")
-    func parameters() throws {
-        let function = try Sample.function("""
+    func parameters() async throws {
+        let function = try await Sample.function("""
             func load(
                 from url: URL,
                 _ data: Data,
@@ -84,8 +84,8 @@ struct FunctionDeclarationTests {
     }
 
     @Test("attributes keep their arguments, and those in every branch of an #if count")
-    func attributes() throws {
-        let function = try Sample.function("""
+    func attributes() async throws {
+        let function = try await Sample.function("""
             @MainActor
             @available(*, deprecated, message: "Use load(from:)")
             #if DEBUG
@@ -109,8 +109,8 @@ struct FunctionDeclarationTests {
     }
 
     @Test("the location is the name's line, and the lines run from the first attribute to the closing brace")
-    func locationAndLines() throws {
-        let function = try Sample.function("""
+    func locationAndLines() async throws {
+        let function = try await Sample.function("""
             import Foundation
 
             /// Loads the thing.
@@ -128,8 +128,8 @@ struct FunctionDeclarationTests {
     }
 
     @Test("a protocol requirement's lines end with its signature")
-    func requirementLines() throws {
-        let function = try Sample.function("""
+    func requirementLines() async throws {
+        let function = try await Sample.function("""
             protocol Loader {
                 func load(
                     from url: URL
@@ -142,15 +142,15 @@ struct FunctionDeclarationTests {
     }
 
     @Test("a location goes straight into a finding")
-    func locationInFinding() throws {
-        let function = try Sample.function("func load() -> LoadResult { .empty }")
+    func locationInFinding() async throws {
+        let function = try await Sample.function("func load() -> LoadResult { .empty }")
         let finding = Finding.failure("`load` should be `async`.", at: function.location)
         #expect(finding.location == Location(path: "Sources/App/Sample.swift", line: 1))
     }
 
     @Test("signatures are equal for functions declared alike, wherever they are and whatever they do")
-    func signaturesAlike() throws {
-        let functions = try Sample.functions(in: """
+    func signaturesAlike() async throws {
+        let functions = try await Sample.functions(in: """
             func load<T: Decodable>(from url: URL, retries: Int = 3) async throws(LoadError) -> T where T: Sendable {
                 try await fetch(url)
             }
@@ -184,15 +184,15 @@ struct FunctionDeclarationTests {
             "func fetch(from url: URL) {}",
         ]
     )
-    func signaturesDiffer(variant: String) throws {
-        let base = try Sample.function("func load(from url: URL) {}").signature
-        let other = try Sample.function(variant).signature
+    func signaturesDiffer(variant: String) async throws {
+        let base = try await Sample.function("func load(from url: URL) {}").signature
+        let other = try await Sample.function(variant).signature
         #expect((other == base) == (variant == "func load(from url: URL) {}"))
     }
 
     @Test("the syntax node is the declaration the model was read from")
-    func syntaxNode() throws {
-        let function = try Sample.function("func load(from url: URL) {}")
+    func syntaxNode() async throws {
+        let function = try await Sample.function("func load(from url: URL) {}")
         #expect(function.syntax.name.text == "load")
         #expect(function.syntax.signature.parameterClause.parameters.count == 1)
     }
