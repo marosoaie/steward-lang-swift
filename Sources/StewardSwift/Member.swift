@@ -46,6 +46,15 @@ public struct Member: Sendable, Hashable {
     /// branch's members are read, in source order.
     public var isConditional: Bool
 
+    /// The attributes, in order, with those in each branch of an `#if`:
+    /// the declaration's, shared by the names it declares, so
+    /// `@MainActor var a, b` gives both `MainActor`. A property wrapper is
+    /// named as spelled, such as `Combine.Published`. Since the names share
+    /// them, a check that reads every member's attributes does names ×
+    /// attributes work on one declaration: quadratic in a file written to
+    /// make it so (SECURITY.md).
+    public var attributes: [Attribute]
+
     /// The line of the member's name, or of its keyword when it has no
     /// name.
     public var location: Location
@@ -54,13 +63,14 @@ public struct Member: Sendable, Hashable {
     /// without the comments before it.
     public var lines: ClosedRange<Int>
 
-    /// Creates a member.
+    /// Creates a member, with no attributes unless `attributes` gives them.
     public init(
         kind: Kind,
         name: String,
         access: AccessLevel,
         isStatic: Bool,
         isConditional: Bool,
+        attributes: [Attribute] = [],
         location: Location,
         lines: ClosedRange<Int>
     ) {
@@ -69,6 +79,7 @@ public struct Member: Sendable, Hashable {
         self.access = access
         self.isStatic = isStatic
         self.isConditional = isConditional
+        self.attributes = attributes
         self.location = location
         self.lines = lines
     }
@@ -105,6 +116,8 @@ extension Member {
         let access = declaration.is(EnumCaseDeclSyntax.self) || declaration.is(DeinitializerDeclSyntax.self)
             ? AccessLevel(implicitMemberOf: owner)
             : AccessLevel(of: declaration, modifiers: modifiers)
+        let attributes = declaration.asProtocol((any WithAttributesSyntax).self)
+            .map { Attribute.all(in: $0.attributes, path: path, lines: lines) } ?? []
         let span = lines.lines(of: declaration)
         return names(of: declaration).map { declared in
             Member(
@@ -113,6 +126,7 @@ extension Member {
                 access: access,
                 isStatic: isStatic,
                 isConditional: isConditional,
+                attributes: attributes,
                 location: Location(path: path, line: lines.line(of: declared.token)),
                 lines: span
             )
