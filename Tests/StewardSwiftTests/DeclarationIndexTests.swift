@@ -91,13 +91,16 @@ struct DeclarationIndexTests {
     }
 
     @Test(
-        "a declaration's lines up to its `{` are its own, whatever starts on them",
+        "a declaration's lines up to its name and its `{` are its own, whatever starts on them",
         arguments: [
-            "struct B { var x = 1\n    var y = 2\n    var z = 3\n}\n",
-            "func a() { func b() {}\n    print(1)\n    print(2)\n}\n",
+            ("struct B { var x = 1\n    var y = 2\n    var z = 3\n}\n", 1),
+            ("func a() { func b() {}\n    print(1)\n    print(2)\n}\n", 1),
+            ("var x = { func inner() {}\n    print(1)\n    print(2)\n}()\n", 1),
+            ("@available(*, deprecated)\nvar x = { func inner() {}\n    print(1)\n}()\n", 2),
+            ("struct B<T>\n    where T: Equatable { var x = 1\n    var y = 2\n}\n", 1),
         ]
     )
-    func header(source: String) throws {
+    func header(source: String, line: Int) throws {
         let file = try SwiftFile(source: source, path: Sample.path)
         let index = DeclarationIndex(file: file)
         let keeps = { (line: Int, changed: Int) in
@@ -110,11 +113,11 @@ struct DeclarationIndexTests {
                 lineCount: file.sourceLines.count
             ).keeps(.message("", at: Location(path: file.path, line: line)))
         }
-        // A finding at the outer declaration, on line 1, is kept when any
-        // of its lines changes; the one starting on its `{` line is judged
-        // with it, the safe side.
-        #expect((1...4).allSatisfy { keeps(1, $0) })
-        #expect(!keeps(1, 5))
+        // A finding at the outer declaration is kept when any of its four
+        // lines changes; the one that starts on its header is judged with
+        // it, the safe side.
+        #expect((1...4).allSatisfy { keeps(line, $0) })
+        #expect(!keeps(line, 5))
     }
 
     @Test("items under ninety-five nested #if blocks are indexed about as fast as the same items under none")

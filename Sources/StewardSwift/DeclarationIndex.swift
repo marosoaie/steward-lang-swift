@@ -18,9 +18,9 @@ struct DeclarationIndex: Sendable {
         /// the one after the line of `{` to the line of `}`; nil for any
         /// other unit, and for braces with no line between them.
         var body: ClosedRange<Int>?
-        /// For a unit with braces, its lines up to the one of its `{`: they
-        /// are its own, whatever else starts on them. Nil for one without.
-        var header: ClosedRange<Int>?
+        /// Its lines up to the ones of its name and of its `{`, if it has
+        /// them: they are its own, whatever else starts on them.
+        var header: ClosedRange<Int>
         /// The innermost unit around this one.
         var parent: Int?
     }
@@ -65,11 +65,12 @@ struct DeclarationIndex: Sendable {
     }
 
     /// `unit`, or the outermost unit around it whose header holds `line`:
-    /// a declaration's lines up to its `{` are its own, so a member that
-    /// starts on its type's `{` line doesn't take the line from the type.
+    /// a declaration's lines up to its name and its `{` are its own, so a
+    /// member that starts on its type's `{` line, or a local function on
+    /// a property's, doesn't take the line from it.
     func owner(of unit: Int, line: Int) -> Int {
         sequence(first: unit) { units[$0].parent }.dropFirst()
-            .prefix { units[$0].header?.contains(line) == true }
+            .prefix { units[$0].header.contains(line) }
             .reduce(unit) { $1 }
     }
 
@@ -111,7 +112,7 @@ struct DeclarationIndex: Sendable {
             units.append(Unit(
                 lines: commented,
                 body: body(of: node, in: lines),
-                header: openingBrace(of: node).map { commented.lowerBound...lines.line(of: $0) },
+                header: commented.lowerBound...headerEnd(of: node, in: lines),
                 parent: open.last?.index
             ))
             open.append((units.count - 1, node.endPositionBeforeTrailingTrivia.utf8Offset))
@@ -149,6 +150,28 @@ struct DeclarationIndex: Sendable {
             }
         }
         return firstComment.map { lines.line(atUTF8Offset: $0)...tokens.upperBound } ?? tokens
+    }
+
+    /// The last line of `node`'s header: the latest of its first token's,
+    /// its name's and its `{`'s.
+    private static func headerEnd(of node: Syntax, in lines: SourceLines) -> Int {
+        let marks = [Syntax(node), name(of: node), openingBrace(of: node).map(Syntax.init)].compactMap(\.self)
+        return marks.map { lines.line(of: $0) }.max() ?? lines.line(of: node)
+    }
+
+    /// The token or pattern that names the declaration `node`, if it is one.
+    private static func name(of node: Syntax) -> Syntax? {
+        if let named = node.asProtocol((any NamedDeclSyntax).self) {
+            return Syntax(named.name)
+        }
+        return switch node.as(SyntaxEnum.self) {
+        case .variableDecl(let variable): variable.bindings.first.map { Syntax($0.pattern) }
+        case .initializerDecl(let initializer): Syntax(initializer.initKeyword)
+        case .deinitializerDecl(let deinitializer): Syntax(deinitializer.deinitKeyword)
+        case .subscriptDecl(let subscriptDecl): Syntax(subscriptDecl.subscriptKeyword)
+        case .extensionDecl(let extensionDecl): Syntax(extensionDecl.extendedType)
+        default: nil
+        }
     }
 
     /// The `{` that opens `node`'s members, body or accessors, if it has one.
