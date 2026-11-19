@@ -205,7 +205,9 @@ README shows to what it prints, the scopes' table to what each scope
 keeps on the diff shown (which git writes), the quoted skip and refusal
 to the rule's, and the manifest to this package's Steward requirement and
 to `swift package dump-package`. Change the README and its examples
-together.
+together. The scopes' diff in the README has context lines that are a
+single space: an editor that trims trailing whitespace breaks them, and
+`ReadmeTests` says so.
 
 The scope tests take their diffs from git, a base and a head committed in
 a temporary repository (`TestRepository`, with Steward's `git diff`

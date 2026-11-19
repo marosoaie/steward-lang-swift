@@ -79,6 +79,18 @@ struct ReadmeTests {
         #expect(Set(examples.keys).subtracting(shown).isEmpty, "examples the README doesn't show")
     }
 
+    @Test("every fence in the README is one the checker reads: backticks at the start of a line, a language it knows")
+    func fences() throws {
+        let readme = try Readme()
+        let fences = readme.text.split(separator: "\n", omittingEmptySubsequences: false).filter { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return trimmed.hasPrefix("```") || trimmed.hasPrefix("~~~")
+        }
+        #expect(fences.allSatisfy { $0.hasPrefix("```") }, "\(fences)")
+        #expect(fences.count == 2 * readme.blocks.count)
+        #expect(Set(readme.blocks.map(\.language)).isSubset(of: ["swift", "yaml", "diff"]))
+    }
+
     @Test("the comment the README shows is the one its Dangerfile leaves on its pull request")
     func comment() throws {
         let repository = try TestRepository()
@@ -93,6 +105,10 @@ struct ReadmeTests {
             in: repository.url
         )
         #expect(run.status == 1, "\(run.error)")
+        // The log line the README quotes, from this run.
+        let checking = "Async loaders: checking Sources/Feed/FeedLoader.swift"
+        #expect(run.error.contains(checking + "\n"), "\(run.error)")
+        #expect(try Readme().text.contains(checking))
         // The summary, less the footer, which a comment in CI has its own of.
         let printed = run.output.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
             .prefix { !$0.hasPrefix("<sub>") }
@@ -135,13 +151,17 @@ struct ReadmeTests {
             "Sources/Feed/Matrix.swift": "let x = " + String(repeating: "[", count: 22) + "1"
                 + String(repeating: "]", count: 22) + "\n",
         ])
-        let findings = try await Checks.asyncLoaders.evaluate(context)
+        // As a run has them, with its log.
+        let outcome = await Checks.run(on: context)
+        let findings = outcome.report?.findings ?? []
         #expect(findings.count == 2)
         let readme = try Readme()
         findings.forEach { finding in
             #expect(readme.text.contains(finding.text), "README.md doesn't quote \(finding.text)")
         }
-        #expect(readme.text.contains("Async loaders: skipped Sources/Feed/Draft.swift, with syntax errors"))
+        let skipped = "Async loaders: skipped Sources/Feed/Draft.swift, with syntax errors"
+        #expect(outcome.log.contains(skipped + "\n"), "\(outcome.log)")
+        #expect(readme.text.contains(skipped))
     }
 
     @Test("the README's manifest asks for the Steward this package builds against, and SwiftPM reads it")
@@ -150,6 +170,13 @@ struct ReadmeTests {
         let own = try String(contentsOf: Readme.root.appendingPathComponent("Package.swift"), encoding: .utf8)
         let steward = try #require(own.split(separator: "\n").first { $0.contains("swift-steward.git") })
         #expect(manifest.contains(steward.trimmingCharacters(in: .whitespaces)))
+        // The prose's versions: swift-syntax's range and Steward's minor
+        // release, as Package.swift has them.
+        let readme = try Readme().text
+        let range = try #require(own.firstMatch(of: /swift-syntax\.git", "([0-9.]+)"\.\.<"([0-9.]+)"/))
+        #expect(readme.contains("`\(range.1)`") && readme.contains("`\(range.2)`"))
+        let minor = try #require(steward.firstMatch(of: /from: "([0-9]+\.[0-9]+)\.0"/))
+        #expect(readme.contains("(\(minor.1) for now)"))
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("steward-lang-swift-tests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directory) }

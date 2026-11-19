@@ -79,16 +79,20 @@ struct WorkedRulesTests {
             .warning("Public struct `Item` has no public initializer.",
                      at: Location(path: "Sources/Item.swift", line: 1)),
         ])
-        // A public extension makes the struct nested in it public, though
-        // the struct's own lines don't change.
+        // The gap the README names: a public extension makes the struct
+        // nested in it public, and the struct's own lines don't change.
         let exposed = try SourceChange.context(
             from: ["Sources/Feed.swift": "extension Feed {\n    struct Page {}\n}\n"],
             to: ["Sources/Feed.swift": "public extension Feed {\n    struct Page {}\n}\n"]
         )
-        #expect(try await Checks.publicInitializers.evaluate(exposed) == [
-            .warning("Public struct `Page` has no public initializer.",
-                     at: Location(path: "Sources/Feed.swift", line: 2)),
-        ])
+        #expect(try await Checks.publicInitializers.evaluate(exposed).isEmpty)
+        // And what the default scope spares: a top-level struct the pull
+        // request didn't touch.
+        let elsewhere = try SourceChange.context(
+            from: ["Sources/Feed.swift": "public struct Feed {}\n\nfunc helper() {}\n"],
+            to: ["Sources/Feed.swift": "public struct Feed {}\n\nfunc helper() { print(1) }\n"]
+        )
+        #expect(try await Checks.publicInitializers.evaluate(elsewhere).isEmpty)
     }
 
     @Test("no @testable import outside Tests/")
@@ -132,14 +136,12 @@ struct WorkedRulesTests {
         #expect(try await Self.findings(Checks.documentedPublicAPI, "Sources/Feed.swift", source) == [
             .warning("Public function `reload` has no doc comment.", at: Location(path: "Sources/Feed.swift", line: 5)),
         ])
-        // A public extension makes the functions in it public, though
-        // their own lines don't change.
+        // The gap the README names: a public extension makes the functions
+        // in it public, and their own lines don't change.
         let exposed = try SourceChange.context(
             from: ["Sources/Feed.swift": "extension Feed {\n    func load() {}\n}\n"],
             to: ["Sources/Feed.swift": "public extension Feed {\n    func load() {}\n}\n"]
         )
-        #expect(try await Checks.documentedPublicAPI.evaluate(exposed) == [
-            .warning("Public function `load` has no doc comment.", at: Location(path: "Sources/Feed.swift", line: 2)),
-        ])
+        #expect(try await Checks.documentedPublicAPI.evaluate(exposed).isEmpty)
     }
 }
