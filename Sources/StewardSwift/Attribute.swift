@@ -5,8 +5,8 @@ import SwiftSyntax
 /// `@available(*, deprecated)`.
 public struct Attribute: Sendable, Hashable {
     /// The name without the `@`, such as `MainActor` or `available`. A
-    /// qualified name has nothing around its dots, as `TypeName` spells
-    /// it: `@Combine .Published` is `Combine.Published`.
+    /// qualified name has nothing around its `.` or `::`, as `TypeName`
+    /// spells it: `@Combine .Published` is `Combine.Published`.
     public var name: String
 
     /// What the parentheses hold, such as `*, deprecated`, or nil when the

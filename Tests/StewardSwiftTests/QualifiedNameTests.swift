@@ -47,12 +47,47 @@ struct QualifiedNameTests {
         #expect(file.memberBlocks.map(\.inheritedTypes.first?.spelling) == ["Module.Loading"])
     }
 
-    @Test("a dot in an expression keeps the space before it, as in an attribute's arguments")
-    func expressionsKeepTheirSpaces() throws {
+    @Test("a member access in an expression keeps its spaces, but a type in one doesn't")
+    func expressions() throws {
         let function = try Sample.function("""
             @Option(name: .long, help: Help . text)
-            func load() {}
+            func load(retries: Int = 3 as Swift . Int) {}
             """)
         #expect(function.attributes.map(\.arguments) == ["name: .long, help: Help . text"])
+        #expect(function.parameters.map(\.defaultValue) == ["3 as Swift.Int"])
     }
+
+    @Test("a generic clause's qualified names have nothing around their dots")
+    func genericClauses() throws {
+        let function = try Sample.function("""
+            func load<T: Module . Loading>(_ item: T) where T . Element == Module
+                .Item {}
+            """)
+        #expect(function.signature.genericParameters == "<T: Module.Loading>")
+        #expect(function.signature.genericRequirements == "where T.Element == Module.Item")
+    }
+
+    #if canImport(SwiftSyntax603)
+    // swift-syntax 603 reads module selectors; 602 has no `::`.
+    @Test("a module selector has nothing around its ::, in a type, an attribute or an expression")
+    func moduleSelectors() throws {
+        let file = try Sample.file("""
+            struct S {
+                @Module::Marked var a = 0
+                @Module :: Marked var b = 0
+                @Module :: Inner . Wrap var c = 0
+                @Option(help: Module :: text) var d = 0
+                func load(_ item: Module :: Item) {}
+            }
+            """)
+        #expect(!file.syntax.hasError)
+        let members = try #require(file.memberBlocks.first).members
+        #expect(members.prefix(3).map { $0.attributes.map(\.name) } == [
+            ["Module::Marked"], ["Module::Marked"], ["Module::Inner.Wrap"],
+        ])
+        #expect(members[3].attributes.map(\.arguments) == ["help: Module::text"])
+        #expect(file.functions.map { $0.parameters.map(\.type) } == [["Module::Item"]])
+        #expect(file.functions.first?.parameters.first?.type.spelling == "Module::Item")
+    }
+    #endif
 }

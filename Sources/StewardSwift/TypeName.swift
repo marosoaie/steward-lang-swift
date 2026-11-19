@@ -16,7 +16,8 @@ import SwiftSyntax
 public struct TypeName: Sendable, Hashable, ExpressibleByStringLiteral, CustomStringConvertible {
     /// The spelling, without comments, and with each run of whitespace or
     /// line breaks between two tokens written as one space, but none around
-    /// a qualified name's dots: `Combine .Published` is `Combine.Published`.
+    /// a qualified name's `.` or `::`: `Combine .Published` is
+    /// `Combine.Published`.
     public var spelling: String
 
     /// Creates a name with this spelling.
