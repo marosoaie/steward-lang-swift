@@ -27,7 +27,7 @@ extension Checks {
     // README: public-initializers
     /// A public struct has a public initializer, since the memberwise one is
     /// internal.
-    static let publicInitializers = Rule.swiftSource("Public initializers", reporting: .changedTypes) { file in
+    static let publicInitializers = Rule.swiftSource("Public initializers") { file in
         file.types
             .filter { $0.kind == .struct && $0.access.level >= .public }
             .filter { type in !type.members.contains { $0.kind == .initializer && $0.access.level >= .public } }
@@ -60,7 +60,7 @@ extension Checks {
     // README: documented-public-api
     /// A public function has a doc comment, read from its syntax node's
     /// leading trivia: SwiftSyntax comes with the import.
-    static let documentedPublicAPI = Rule.swiftSource("Documented public API", reporting: .changedTypes) { file in
+    static let documentedPublicAPI = Rule.swiftSource("Documented public API") { file in
         file.functions
             .filter { $0.access.level >= .public }
             .filter { function in

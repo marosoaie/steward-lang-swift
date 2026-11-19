@@ -107,10 +107,10 @@ let package = Package(
   a cold build of the template Dangerfile goes from about 16 s to about
   26 s with it, which steward-action's cache saves on later runs. Commit
   `Dangerfile/Package.resolved`, since the cache's key is its hash.
-  Reading a file takes 10 to 20 MB/s in a release build
-  ([docs/performance.md](docs/performance.md)), and the parser is about
-  30 times slower in a debug build, which is how a Dangerfile usually
-  runs. Each rule reads its files itself.
+  Reading a file takes 10 to 20 MB/s in a release build, and about 40
+  times as long in a debug build, which is how steward-action builds a
+  Dangerfile: 0.2 to 0.4 MB/s ([docs/performance.md](docs/performance.md)).
+  Each rule reads its files itself.
 
 The workflow, with steward-action pinned to a release and a time limit
 on the job:
@@ -147,10 +147,12 @@ jobs:
 `Rule.swiftSource` hands its check a `SwiftFile`: the file's `imports`,
 `types`, `memberBlocks` and `functions`, each at any depth (nested in
 types, local to functions) and in every branch of an `#if`. Each value
-has a `location` for a finding's `at:`, and `lines`. A type is a
+has a `location` for a finding's `at:`. Functions, types, member blocks
+and members also have their `lines`, and the file, functions, types and
+member blocks their swift-syntax node, `syntax`, for what the model
+doesn't hold. A type's name in a signature or an inheritance clause is a
 `TypeName`, which matches a string by its spelling, and an access level
-an `AccessLevel`. Each value also has its swift-syntax node, `syntax`, for
-what the model doesn't hold.
+an `AccessLevel`.
 
 Each block below is the body of a test in this repository, so what it
 expects holds.
@@ -307,17 +309,21 @@ static let finalClasses = Rule.swiftSource("Final classes") { file in
 }
 ```
 
-A public struct has a public initializer. Whether a declaration is
-public can change with the extension or type around it (`extension Feed`
-becoming `public extension Feed`), so the public-API rules want
-`.changedTypes`. It reads the type's own members, so an initializer in an
-extension doesn't count:
+A public struct has a public initializer. It reads the type's own
+members, so an initializer in an extension doesn't count. On the default
+scope its finding is kept when anything in the struct changes, a removed
+initializer included. What it misses is a struct that the extension
+around it makes public, when only the extension's header changes
+(`extension Feed` becoming `public extension Feed`). `.changedTypes`
+would catch that, at a price: a top-level struct's own line is in no
+braces, so it would report every top-level public struct whenever the
+file changed:
 
 <!-- README: public-initializers -->
 ```swift
 /// A public struct has a public initializer, since the memberwise one is
 /// internal.
-static let publicInitializers = Rule.swiftSource("Public initializers", reporting: .changedTypes) { file in
+static let publicInitializers = Rule.swiftSource("Public initializers") { file in
     file.types
         .filter { $0.kind == .struct && $0.access.level >= .public }
         .filter { type in !type.members.contains { $0.kind == .initializer && $0.access.level >= .public } }
@@ -357,14 +363,14 @@ static let flagParameters = Rule.swiftSource("Flag parameters") { file in
 
 A public function has a doc comment, which the model doesn't hold: the
 function's `syntax` does, in the trivia before its first token. Like the
-public initializers, it wants `.changedTypes`.
+public initializers, it keeps the default scope, with the same gap.
 `StewardSwift` re-exports SwiftSyntax, so its types need no import:
 
 <!-- README: documented-public-api -->
 ```swift
 /// A public function has a doc comment, read from its syntax node's
 /// leading trivia: SwiftSyntax comes with the import.
-static let documentedPublicAPI = Rule.swiftSource("Documented public API", reporting: .changedTypes) { file in
+static let documentedPublicAPI = Rule.swiftSource("Documented public API") { file in
     file.functions
         .filter { $0.access.level >= .public }
         .filter { function in
@@ -390,9 +396,10 @@ one is at:
 
 - **`.changedDeclarations`**, the default, keeps a finding when the
   declaration around its line changed. For a rule about one declaration.
-- **`.changedTypes`** keeps a finding when the type or extension around
-  its line changed anywhere, and every finding outside any type. For a
-  rule about order or siblings.
+- **`.changedTypes`** keeps a finding when the type or extension whose
+  braces hold its line changed anywhere. A line in no braces, as a
+  top-level type's own line is, is the file's: there it keeps every
+  finding whenever the file changed. For a rule about order or siblings.
 - **`.changedFiles`** keeps every finding in a file the pull request
   changed. For a rule about the file, such as its imports.
 
