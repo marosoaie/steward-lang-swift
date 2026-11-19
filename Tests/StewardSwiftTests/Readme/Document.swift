@@ -88,7 +88,11 @@ struct Document {
         let found = try files.flatMap { file in
             Self.regions(in: try String(contentsOf: file, encoding: .utf8), marker: source.marker)
         }
-        return Dictionary(found) { first, _ in first }
+        let repeated = Dictionary(grouping: found) { $0.0 }.filter { $0.value.count > 1 }.keys.sorted()
+        guard repeated.isEmpty else {
+            throw SubprocessError("\(source.path)'s examples have more than one named \(repeated)")
+        }
+        return Dictionary(uniqueKeysWithValues: found)
     }
 
     private static func blocks(in lines: [String], marker: String) -> [Block] {

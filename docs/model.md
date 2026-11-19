@@ -26,6 +26,13 @@ for one it can't read safely ([SECURITY.md](../SECURITY.md)).
 | `functions` | Every `func`, in source order, at any depth: in types, extensions and protocols, in other functions and closures, in every branch of an `#if`. |
 | `syntax` | The file's `SourceFileSyntax`. |
 
+`location(of:)` gives a node of the file's tree its `Location`, its first
+token's line as git counts lines, for a finding about what the model
+doesn't hold. Use it rather than swift-syntax's `SourceLocationConverter`,
+whose lines follow `#sourceLocation`: a pull request's file chooses the
+line there, and one near `Int.max` overflows its arithmetic and crashes
+the run.
+
 ## `FunctionDeclaration`
 
 A `func`. Initializers, subscripts and accessors aren't functions here;

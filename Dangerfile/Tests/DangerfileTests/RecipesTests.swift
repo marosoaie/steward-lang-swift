@@ -84,6 +84,31 @@ struct RecipesTests {
         ])
     }
 
+    @Test("a nested public struct matches its initializers by its name with the types around it")
+    func nestedInitializers() async throws {
+        let source = """
+            public struct Outer {
+                public init() {}
+                public struct Inner {}
+            }
+
+            extension Outer.Inner {
+                public init(value: Int) {}
+            }
+
+            public struct Other {
+                public struct Inner {}
+            }
+
+            """
+        #expect(try await Self.findings(Checks.publicInitializers, "Sources/App/Nested.swift", source) == [
+            .warning("Public struct `Other` has no public initializer.",
+                     at: Location(path: "Sources/App/Nested.swift", line: 10)),
+            .warning("Public struct `Inner` has no public initializer.",
+                     at: Location(path: "Sources/App/Nested.swift", line: 11)),
+        ])
+    }
+
     @Test("a test in Tests/ needs a sentence for a name, not a bare @Test or a word")
     func sentenceTestNames() async throws {
         let source = """
@@ -116,12 +141,17 @@ struct RecipesTests {
             let c = "one" + name + "two"
             let d = #"raw"# + "plain"
             let e = 1 + 2
+            #sourceLocation(file: "x", line: 9223372036854775807)
+            let f = "far" + "away"
+            #sourceLocation()
 
             """
         let message = "A multiline string literal reads better than literals joined with `+`."
         #expect(try await Self.findings(Checks.concatenatedLiterals, "Sources/App/Text.swift", source) == [
             .message(message, at: Location(path: "Sources/App/Text.swift", line: 1)),
             .message(message, at: Location(path: "Sources/App/Text.swift", line: 4)),
+            // At the line git counts, whatever #sourceLocation says.
+            .message(message, at: Location(path: "Sources/App/Text.swift", line: 7)),
         ])
     }
 }

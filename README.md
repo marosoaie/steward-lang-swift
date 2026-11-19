@@ -150,7 +150,8 @@ types, local to functions) and in every branch of an `#if`. Each value
 has a `location` for a finding's `at:`. Functions, types, member blocks
 and members also have their `lines`, and the file, functions, types and
 member blocks their swift-syntax node, `syntax`, for what the model
-doesn't hold. A type's name in a signature or an inheritance clause is a
+doesn't hold; `file.location(of:)` gives such a node its location, as git
+counts lines. A type's name in a signature or an inheritance clause is a
 `TypeName`, which matches a string by its spelling, and an access level
 an `AccessLevel`.
 

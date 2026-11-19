@@ -39,7 +39,10 @@ ordering rules) and `functions` (`FunctionDeclaration`, with its
 `FunctionSignature`, `Parameter`s and `Attribute`s), all at any depth and
 in every branch of an `#if`; names of types are `TypeName`s and access
 levels `AccessLevel`s. Every model value has a `location` that goes
-straight into a `Finding`'s `at:`. `StewardSwift` re-exports `Steward`
+straight into a `Finding`'s `at:`, and `file.location(of:)` gives a raw
+node one, from `SourceLines`: swift-syntax's `SourceLocationConverter`
+follows `#sourceLocation`, whose line a pull request chooses, and can
+overflow. `StewardSwift` re-exports `Steward`
 (and with it Steward's own re-exports, `GitDiffKit` and
 `PullRequestHosting`) and `SwiftSyntax`, so a Dangerfile with Swift rules
 imports only `StewardSwift`, even one that reaches for raw nodes;

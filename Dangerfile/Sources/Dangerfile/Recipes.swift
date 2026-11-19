@@ -30,12 +30,10 @@ extension Checks {
     // Recipe: end
 
     // Recipe: documented-public-api
-    /// Every public type and function has a doc comment. Whether one is
-    /// public can change with the extension around it, so the rule judges
-    /// by the type or extension that changed.
-    static let documentedPublicAPI = Rule.swiftSource(
-        "Documented public API", in: "Sources/**/*.swift", reporting: .changedTypes
-    ) { file in
+    /// Every public type and function has a doc comment. On the default
+    /// scope, a declaration that the extension around it makes public is
+    /// missed when only the extension's header changes.
+    static let documentedPublicAPI = Rule.swiftSource("Documented public API", in: "Sources/**/*.swift") { file in
         let types = file.types.filter { $0.access.level >= .public && !isDocumented($0.syntax) }
             .map { ($0.name, $0.location) }
         let functions = file.functions.filter { $0.access.level >= .public && !isDocumented($0.syntax) }
@@ -57,25 +55,34 @@ extension Checks {
     // Recipe: end
 
     // Recipe: public-initializers
-    /// A public struct has a public initializer, in its body or in an
-    /// extension in the same file, unless it holds a syntax node: such a
-    /// value has no memberwise initializer, since its fields would disagree
-    /// with its node if set by hand (AGENTS.md).
-    static let publicInitializers = Rule.swiftSource(
-        "Public initializers", in: "Sources/**/*.swift", reporting: .changedTypes
-    ) { file in
+    /// A public struct has a public initializer, in its braces or in an
+    /// extension of it in the same file, unless it holds a syntax node:
+    /// such a value has no memberwise initializer, since its fields would
+    /// disagree with its node if set by hand (AGENTS.md). Types and
+    /// extensions match by their names with the types around them.
+    static let publicInitializers = Rule.swiftSource("Public initializers", in: "Sources/**/*.swift") { file in
         let initialized = Set(file.memberBlocks
             .filter { block in block.members.contains { $0.kind == .initializer && $0.access.level >= .public } }
-            .map { block in
-                switch block.owner {
-                case .type(_, let name): TypeName(name)
-                case .extension(let name): name
-                }
-            })
+            .compactMap { $0.syntax.parent.map(qualifiedName(of:)) })
         return file.types
-            .filter { $0.kind == .struct && $0.access.level >= .public && !initialized.contains(TypeName($0.name)) }
-            .filter { type in !type.members.contains { $0.name == "syntax" } }
+            .filter { $0.kind == .struct && $0.access.level >= .public }
+            .filter { type in
+                !initialized.contains(qualifiedName(of: type.syntax)) && !type.members.contains { $0.name == "syntax" }
+            }
             .map { .warning("Public struct \(Markdown.codeSpan($0.name)) has no public initializer.", at: $0.location) }
+    }
+
+    /// The name of the type that `declaration` declares or extends, with
+    /// the types and extensions around it: `Outer.Inner`.
+    static func qualifiedName(of declaration: some SyntaxProtocol) -> TypeName {
+        let names = sequence(first: Syntax(declaration), next: \.parent).compactMap { node -> String? in
+            if let extended = node.as(ExtensionDeclSyntax.self) {
+                return extended.extendedType.trimmedDescription
+            }
+            guard node.isProtocol((any DeclGroupSyntax).self) else { return nil }
+            return node.asProtocol((any NamedDeclSyntax).self)?.name.text
+        }
+        return TypeName(names.reversed().joined(separator: "."))
     }
     // Recipe: end
 
@@ -95,12 +102,10 @@ extension Checks {
 
     // Recipe: concatenated-literals
     /// A multiline string literal over string literals joined with `+`,
-    /// read from the tokens: a `+` with a string literal on each side. The
-    /// line comes from swift-syntax's `SourceLocationConverter`, which also
-    /// counts a lone carriage return as a line break, unlike git.
+    /// read from the tokens: a `+` with a string literal on each side, at
+    /// the line `file.location(of:)` gives it.
     static let concatenatedLiterals = Rule.swiftSource("Concatenated literals") { file in
-        let converter = SourceLocationConverter(fileName: file.path, tree: file.syntax)
-        return file.syntax.tokens(viewMode: .sourceAccurate)
+        file.syntax.tokens(viewMode: .sourceAccurate)
             .filter { $0.tokenKind == .binaryOperator("+") && $0.parent?.is(BinaryOperatorExprSyntax.self) == true }
             .filter { plus in
                 let sides = [plus.previousToken(viewMode: .sourceAccurate), plus.nextToken(viewMode: .sourceAccurate)]
@@ -112,7 +117,7 @@ extension Checks {
             .map { plus in
                 .message(
                     "A multiline string literal reads better than literals joined with `+`.",
-                    at: Location(path: file.path, line: plus.startLocation(converter: converter).line)
+                    at: file.location(of: plus)
                 )
             }
     }
