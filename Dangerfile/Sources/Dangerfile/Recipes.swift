@@ -32,7 +32,8 @@ extension Checks {
     // Recipe: documented-public-api
     /// Every public type and function has a doc comment. On the default
     /// scope, a declaration that the extension around it makes public is
-    /// missed when only the extension's header changes.
+    /// missed when only the extension's header changes, as is a
+    /// requirement of a protocol that becomes public.
     static let documentedPublicAPI = Rule.swiftSource("Documented public API", in: "Sources/**/*.swift") { file in
         let types = file.types.filter { $0.access.level >= .public && !isDocumented($0.syntax) }
             .map { ($0.name, $0.location) }

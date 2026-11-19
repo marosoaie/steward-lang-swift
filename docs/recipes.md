@@ -46,7 +46,8 @@ static let valueTypes = Rule.swiftSource("Value types", in: "Sources/**/*.swift"
 
 Every public type and function carries a doc comment. It keeps the
 default scope, so a declaration that the extension around it makes public
-is missed when only the extension's header changes; `.changedTypes`
+is missed when only the extension's header changes, as is a requirement
+of a protocol that becomes public; `.changedTypes`
 would catch that, but would report every top-level public type whenever
 its file changed (the README's [worked rules](../README.md#worked-rules)
 weigh the same choice). The helper it uses comes with it:
@@ -55,7 +56,8 @@ weigh the same choice). The helper it uses comes with it:
 ```swift
 /// Every public type and function has a doc comment. On the default
 /// scope, a declaration that the extension around it makes public is
-/// missed when only the extension's header changes.
+/// missed when only the extension's header changes, as is a
+/// requirement of a protocol that becomes public.
 static let documentedPublicAPI = Rule.swiftSource("Documented public API", in: "Sources/**/*.swift") { file in
     let types = file.types.filter { $0.access.level >= .public && !isDocumented($0.syntax) }
         .map { ($0.name, $0.location) }

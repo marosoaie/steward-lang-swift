@@ -364,7 +364,8 @@ static let flagParameters = Rule.swiftSource("Flag parameters") { file in
 
 A public function has a doc comment, which the model doesn't hold: the
 function's `syntax` does, in the trivia before its first token. Like the
-public initializers, it keeps the default scope, with the same gap.
+public initializers, it keeps the default scope, with the same gap, and
+one more: a requirement of a protocol that becomes public.
 `StewardSwift` re-exports SwiftSyntax, so its types need no import:
 
 <!-- README: documented-public-api -->
