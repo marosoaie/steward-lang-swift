@@ -281,8 +281,10 @@ records its numbers. Benchmark in a release build only.
   (`.github/scripts/check-release-version.sh`); runs the tests, with a
   read-only token; and then, in a job of its own that builds nothing
   and alone can write (`contents: write`), tags the commit `vX.Y.Z`, as
-  swift-steward's are, and publishes the release. `0.1.0`, the first
+  swift-steward's are, publishes the release, and checks that the tag is
+  the tested commit. `0.1.0`, the first
   release, is the one tag without the `v`, made by hand before the
   workflow existed; being immutable, it stays, and SwiftPM reads both
-  forms. A published release's tag can't be moved or deleted, nor its
-  name used again, but its title and notes can still be edited.
+  forms. A published release's tag can't be moved, nor deleted while the
+  release exists, and its name can't be used again; its title and notes
+  can still be edited.

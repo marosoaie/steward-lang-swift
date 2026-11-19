@@ -51,27 +51,22 @@ order() {
   echo "$result"
 }
 
-tagged=false
-newest='' n1='' n2='' n3=''
+# Each MAJOR.MINOR.PATCH tag, with or without the v, is compared as it's
+# read, and anything but "greater" refuses: a comparison that fails, in a
+# subshell -e doesn't reach, refuses too.
+count=0
 while IFS= read -r tag || [[ -n $tag ]]; do
   if [[ $tag == "$version" || $tag == "v$version" ]]; then
-    tagged=true
+    echo "$version is already tagged, as $tag" >&2
+    exit 1
   fi
   if [[ $tag =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-    t1=${BASH_REMATCH[1]} t2=${BASH_REMATCH[2]} t3=${BASH_REMATCH[3]}
-    if [[ -z $newest || $(order "$t1" "$t2" "$t3" "$n1" "$n2" "$n3") == 1 ]]; then
-      newest=$tag n1=$t1 n2=$t2 n3=$t3
+    if [[ $(order "$v1" "$v2" "$v3" "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}") != 1 ]]; then
+      echo "$version isn't greater than $tag, a version already tagged" >&2
+      exit 1
     fi
+    count=$((count + 1))
   fi
 done
 
-if $tagged; then
-  echo "$version is already tagged, as $version or v$version" >&2
-  exit 1
-fi
-if [[ -n $newest && $(order "$v1" "$v2" "$v3" "$n1" "$n2" "$n3") != 1 ]]; then
-  echo "$version isn't greater than $newest, the newest version tagged" >&2
-  exit 1
-fi
-
-echo "v$version can be released; the newest version tagged so far is ${newest:-none}."
+echo "v$version can be released: it's greater than every version tagged ($count)."

@@ -3,8 +3,9 @@ run-name: Release v${{ inputs.version }}
 
 # Run by hand, from main, with the version to release: the workflow tags
 # the commit it runs on `v<version>` and publishes a release there. A
-# release is immutable once published (its tag can't move or be deleted,
-# nor its name be reused); its title and notes can still be edited.
+# release is immutable once published: its tag can't be moved, nor deleted
+# while the release exists, and its name can't be used again, but its
+# title and notes can still be edited.
 on:
   workflow_dispatch:
     inputs:
@@ -48,6 +49,8 @@ jobs:
       VERSION: ${{ inputs.version }}
     steps:
       # A release tags what main holds; a dispatch can choose any branch.
+      # This guards against a mistake, not a person: a dispatch from
+      # another branch runs that branch's copy of this file.
       - name: Release only from main
         run: |
           [[ "$GITHUB_REF" == refs/heads/main ]] || { echo "Releases run from main, not $GITHUB_REF"; exit 1; }
@@ -106,3 +109,13 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "v$VERSION" \
             "${notes[@]}"
+
+      # A tag pushed by hand between the check and the publish would be
+      # released where it points, not at --target. This can't prevent
+      # that, but it fails the run if it happened, and shows that the tag is
+      # the commit the tests ran on.
+      - name: Check that the tag is the tested commit
+        run: |
+          git fetch --quiet --depth=1 origin "refs/tags/v$VERSION:refs/tags/v$VERSION"
+          tagged=$(git rev-parse "refs/tags/v$VERSION^{commit}")
+          [[ "$tagged" == "$GITHUB_SHA" ]] || { echo "v$VERSION is at $tagged, not at $GITHUB_SHA, which the tests ran on"; exit 1; }
