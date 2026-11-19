@@ -52,6 +52,12 @@ public struct FunctionDeclaration: Sendable {
     /// comment loses its ` * ` decoration when its `/**` ends a line and the
     /// stars line up under it. Blank lines at the start and the end are
     /// dropped, so an empty doc comment is `""`.
+    ///
+    /// Where the compiler, as of Swift 6.4, reads otherwise: a doc comment
+    /// after code on the line above documents that code, not this
+    /// declaration, and a block comment with CRLF line ends reads as one
+    /// with LF ends, where the compiler keeps its stars and adds an empty
+    /// line after each line.
     public var documentation: String?
 
     /// The line of the function's name, to report a finding at.

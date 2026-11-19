@@ -1,3 +1,4 @@
+import Foundation
 import StewardSwift
 import Testing
 
@@ -107,6 +108,25 @@ struct DocumentationTests {
             """)
         #expect(file.functions.map(\.documentation) == [nil])
         #expect(file.memberBlocks.first?.members.map(\.documentation) == [nil, nil])
+    }
+
+    // The compiler, as of Swift 6.4, reads the first two with their stars
+    // and an empty line after each line, and the third with an empty line
+    // between A and B: its reading depends on the line ends; the model's
+    // doesn't.
+    @Test(
+        "a block comment with CRLF line ends reads as one with LF ends",
+        arguments: [
+            ("/**\r\n * A\r\n * B\r\n */", "A\nB"),
+            ("/**\r\n A\r\n   B\r\n */", "A\n  B"),
+            ("/** A\r\n B */", "A\nB "),
+        ]
+    )
+    func crlfBlockComments(comment: String, text: String) throws {
+        let crlf = try Sample.file(comment + "\r\nfunc f() {}")
+        let lf = try Sample.file(comment.replacingOccurrences(of: "\r\n", with: "\n") + "\nfunc f() {}")
+        #expect(crlf.functions.map(\.documentation) == [text])
+        #expect(lf.functions.map(\.documentation) == [text])
     }
 
     @Test("a rule finds the public functions with no doc comment, as issue #14 shows it")

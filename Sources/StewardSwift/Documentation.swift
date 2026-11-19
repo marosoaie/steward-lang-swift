@@ -15,6 +15,10 @@ enum Documentation {
     /// aligned under the `/**`. Each line then loses as much of its leading
     /// whitespace as the run's first non-empty line has, and whitespace-only
     /// lines at the start and the end are dropped, which the compiler keeps.
+    /// A block comment's CRLF line ends read as LF, which the compiler, as
+    /// of Swift 6.4, reads otherwise; and a doc comment that trails code is
+    /// in that line's trailing trivia, not here, where the compiler counts
+    /// it.
     static func text(of declaration: some SyntaxProtocol, lines: SourceLines) -> String? {
         // An imperative loop: the run so far, and the line breaks since the
         // last comment, are the state.
