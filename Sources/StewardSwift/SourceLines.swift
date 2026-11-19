@@ -38,6 +38,12 @@ struct SourceLines: Sendable {
         return low + 1
     }
 
+    /// The 1-based column of the byte at `offset`, in bytes from the start
+    /// of its line.
+    func column(atUTF8Offset offset: Int) -> Int {
+        offset - starts[line(atUTF8Offset: offset) - 1] + 1
+    }
+
     /// The lines `node` covers, from its first token to its last, without
     /// the trivia around them.
     func lines(of node: some SyntaxProtocol) -> ClosedRange<Int> {

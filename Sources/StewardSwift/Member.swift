@@ -55,6 +55,12 @@ public struct Member: Sendable, Hashable {
     /// make it so (SECURITY.md).
     public var attributes: [Attribute]
 
+    /// The doc comment's text, read as `FunctionDeclaration.documentation`
+    /// is, or nil when there's none: the declaration's, shared by the names
+    /// it declares, as its attributes are, at the same cost to a check that
+    /// reads every member's (SECURITY.md).
+    public var documentation: String?
+
     /// The line of the member's name, or of its keyword when it has no
     /// name.
     public var location: Location
@@ -63,7 +69,8 @@ public struct Member: Sendable, Hashable {
     /// without the comments before it.
     public var lines: ClosedRange<Int>
 
-    /// Creates a member, with no attributes unless `attributes` gives them.
+    /// Creates a member, with no attributes and no doc comment unless
+    /// `attributes` and `documentation` give them.
     public init(
         kind: Kind,
         name: String,
@@ -71,6 +78,7 @@ public struct Member: Sendable, Hashable {
         isStatic: Bool,
         isConditional: Bool,
         attributes: [Attribute] = [],
+        documentation: String? = nil,
         location: Location,
         lines: ClosedRange<Int>
     ) {
@@ -80,6 +88,7 @@ public struct Member: Sendable, Hashable {
         self.isStatic = isStatic
         self.isConditional = isConditional
         self.attributes = attributes
+        self.documentation = documentation
         self.location = location
         self.lines = lines
     }
@@ -118,6 +127,7 @@ extension Member {
             : AccessLevel(of: declaration, modifiers: modifiers)
         let attributes = declaration.asProtocol((any WithAttributesSyntax).self)
             .map { Attribute.all(in: $0.attributes, path: path, lines: lines) } ?? []
+        let documentation = Documentation.text(of: declaration, lines: lines)
         let span = lines.lines(of: declaration)
         return names(of: declaration).map { declared in
             Member(
@@ -127,6 +137,7 @@ extension Member {
                 isStatic: isStatic,
                 isConditional: isConditional,
                 attributes: attributes,
+                documentation: documentation,
                 location: Location(path: path, line: lines.line(of: declared.token)),
                 lines: span
             )
