@@ -69,8 +69,9 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
   "<rule>: checking <path>" before it reads a file, and rules run one
   after another, so the log of a run that dies names the rule and the file
   it died in.
-- **The deadline is the reading's.** It covers the scan, the parse, the
-  model and the scopes' index; the rule's check runs after it, on the
+- **The deadline is the reading's.** It covers the parse, the model and
+  the scopes' index, after the nesting scan, one linear pass on the
+  rule's own thread before them; the rule's check runs after it, on the
   same 64 MiB thread, with no limit, as a check in Steward has none.
 
 ## What it doesn't protect against

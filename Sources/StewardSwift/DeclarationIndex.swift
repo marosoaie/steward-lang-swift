@@ -18,6 +18,9 @@ struct DeclarationIndex: Sendable {
         /// the one after the line of `{` to the line of `}`; nil for any
         /// other unit, and for braces with no line between them.
         var body: ClosedRange<Int>?
+        /// For a unit with braces, its lines up to the one of its `{`: they
+        /// are its own, whatever else starts on them. Nil for one without.
+        var header: ClosedRange<Int>?
         /// The innermost unit around this one.
         var parent: Int?
     }
@@ -27,8 +30,16 @@ struct DeclarationIndex: Sendable {
     let units: [Unit]
 
     init(file: SwiftFile) {
-        let lines = file.sourceLines
-        units = Self.units(file.syntax.preorder().filter(Self.isUnit), lines: lines)
+        // The item lists at the top of the file, through any `#if`, found
+        // once from the root, so that telling whether an item is at the top
+        // costs the same however deep the `#if`s around it nest.
+        let topLevel = Set(file.syntax.preorder { node in
+            node.is(SourceFileSyntax.self) || node.is(CodeBlockItemListSyntax.self)
+                || node.is(CodeBlockItemSyntax.self) || node.is(IfConfigDeclSyntax.self)
+                || node.is(IfConfigClauseListSyntax.self) || node.is(IfConfigClauseSyntax.self)
+        }.filter { $0.is(CodeBlockItemListSyntax.self) }.map(\.id))
+        let nodes = file.syntax.preorder().filter { Self.isUnit($0, topLevel: topLevel) }
+        units = Self.units(nodes, lines: file.sourceLines)
     }
 
     /// The innermost unit whose lines hold `line`, if one does.
@@ -53,31 +64,34 @@ struct DeclarationIndex: Sendable {
         return sequence(first: low - 1) { units[$0].parent }.first { units[$0].lines.contains(line) }
     }
 
+    /// `unit`, or the outermost unit around it whose header holds `line`:
+    /// a declaration's lines up to its `{` are its own, so a member that
+    /// starts on its type's `{` line doesn't take the line from the type.
+    func owner(of unit: Int, line: Int) -> Int {
+        sequence(first: unit) { units[$0].parent }.dropFirst()
+            .prefix { units[$0].header?.contains(line) == true }
+            .reduce(unit) { $1 }
+    }
+
     /// The type or extension whose braces hold `line` most closely, among
     /// `unit` and the units around it.
     func container(of unit: Int, line: Int) -> Int? {
         sequence(first: unit) { units[$0].parent }.first { units[$0].body?.contains(line) == true }
     }
 
-    private static func isUnit(_ node: Syntax) -> Bool {
+    /// Whether `node` is a unit, given the item lists at the top of the
+    /// file.
+    private static func isUnit(_ node: Syntax, topLevel: Set<SyntaxIdentifier>) -> Bool {
+        // An item of a list at the top of the file.
+        let isTopLevel = node.parent?.is(CodeBlockItemSyntax.self) == true
+            && node.parent?.parent.map { topLevel.contains($0.id) } == true
         guard let declaration = node.as(DeclSyntax.self) else {
-            return (node.is(StmtSyntax.self) || node.is(ExprSyntax.self)) && isTopLevel(node)
+            return (node.is(StmtSyntax.self) || node.is(ExprSyntax.self)) && isTopLevel
         }
         return !declaration.is(IfConfigDeclSyntax.self) && (
             declaration.is(FunctionDeclSyntax.self) || declaration.isProtocol((any DeclGroupSyntax).self)
-                || node.parent?.is(MemberBlockItemSyntax.self) == true || isTopLevel(node)
+                || node.parent?.is(MemberBlockItemSyntax.self) == true || isTopLevel
         )
-    }
-
-    /// Whether `node` is an item at the top of the file, through any `#if`.
-    private static func isTopLevel(_ node: Syntax) -> Bool {
-        guard let item = node.parent, item.is(CodeBlockItemSyntax.self) else { return false }
-        let container = item.ancestors.first { ancestor in
-            !(ancestor.is(CodeBlockItemListSyntax.self) || ancestor.is(CodeBlockItemSyntax.self)
-                || ancestor.is(IfConfigClauseSyntax.self) || ancestor.is(IfConfigClauseListSyntax.self)
-                || ancestor.is(IfConfigDeclSyntax.self))
-        }
-        return container?.is(SourceFileSyntax.self) == true
     }
 
     /// The units of `nodes`, in source order, each with its parent: the last
@@ -93,9 +107,11 @@ struct DeclarationIndex: Sendable {
             while let last = open.last, last.end <= start {
                 open.removeLast()
             }
+            let commented = commentedLines(of: node, in: lines)
             units.append(Unit(
-                lines: commentedLines(of: node, in: lines),
+                lines: commented,
                 body: body(of: node, in: lines),
+                header: openingBrace(of: node).map { commented.lowerBound...lines.line(of: $0) },
                 parent: open.last?.index
             ))
             open.append((units.count - 1, node.endPositionBeforeTrailingTrivia.utf8Offset))
@@ -133,6 +149,21 @@ struct DeclarationIndex: Sendable {
             }
         }
         return firstComment.map { lines.line(atUTF8Offset: $0)...tokens.upperBound } ?? tokens
+    }
+
+    /// The `{` that opens `node`'s members, body or accessors, if it has one.
+    private static func openingBrace(of node: Syntax) -> TokenSyntax? {
+        if let group = node.asProtocol((any DeclGroupSyntax).self) {
+            return group.memberBlock.leftBrace
+        }
+        return switch node.as(SyntaxEnum.self) {
+        case .functionDecl(let function): function.body?.leftBrace
+        case .initializerDecl(let initializer): initializer.body?.leftBrace
+        case .deinitializerDecl(let deinitializer): deinitializer.body?.leftBrace
+        case .subscriptDecl(let subscriptDecl): subscriptDecl.accessorBlock?.leftBrace
+        case .variableDecl(let variable): variable.bindings.first { $0.accessorBlock != nil }?.accessorBlock?.leftBrace
+        default: nil
+        }
     }
 
     /// For a type or an extension, the lines inside its braces.

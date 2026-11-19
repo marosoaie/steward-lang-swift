@@ -90,6 +90,47 @@ struct DeclarationIndexTests {
         }
     }
 
+    @Test(
+        "a declaration's lines up to its `{` are its own, whatever starts on them",
+        arguments: [
+            "struct B { var x = 1\n    var y = 2\n    var z = 3\n}\n",
+            "func a() { func b() {}\n    print(1)\n    print(2)\n}\n",
+        ]
+    )
+    func header(source: String) throws {
+        let file = try SwiftFile(source: source, path: Sample.path)
+        let index = DeclarationIndex(file: file)
+        let keeps = { (line: Int, changed: Int) in
+            ScopedFindings(
+                path: file.path,
+                scope: .changedDeclarations,
+                changedLines: LineRangeSet([changed...changed]),
+                linesAfterDeletions: LineRangeSet(),
+                index: index,
+                lineCount: file.sourceLines.count
+            ).keeps(.message("", at: Location(path: file.path, line: line)))
+        }
+        // A finding at the outer declaration, on line 1, is kept when any
+        // of its lines changes; the one starting on its `{` line is judged
+        // with it, the safe side.
+        #expect((1...4).allSatisfy { keeps(1, $0) })
+        #expect(!keeps(1, 5))
+    }
+
+    @Test("items under ninety-five nested #if blocks are indexed in time linear in the file")
+    func deepConditionalCompilation() throws {
+        let depth = 95
+        let items = String(repeating: "f()\n", count: 20_000)
+        let source = String(repeating: "#if A\n", count: depth) + items + String(repeating: "#endif\n", count: depth)
+        let file = try SwiftFile(source: source, path: Sample.path)
+        let clock = ContinuousClock()
+        var count = 0
+        let elapsed = clock.measure { count = DeclarationIndex(file: file).units.count }
+        #expect(count == 20_000)
+        // About 0.5 s in a debug build on an M4; the walk it replaced took 5.
+        #expect(elapsed < .seconds(3), "took \(elapsed)")
+    }
+
     @Test("a finding at another spelling of the file's path is another file's, as git tells paths apart by bytes")
     func pathBytes() throws {
         let precomposed = "Sources/Caf\u{E9}.swift"

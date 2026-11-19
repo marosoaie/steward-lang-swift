@@ -241,11 +241,12 @@ struct ScopedFindings: Sendable {
         else { return true }
         // A line the file doesn't have, a rule's bug, is a loose line, and
         // never an index.
-        guard 1...lineCount ~= line, let unit = index.innermost(containing: line) else {
+        guard 1...lineCount ~= line, let innermost = index.innermost(containing: line) else {
             // A loose line is at the top of the file, whose container is
             // the file.
             return scope == .changedTypes || changed(line...line)
         }
+        let unit = index.owner(of: innermost, line: line)
         guard scope == .changedTypes else {
             return changed(index.units[unit].lines)
         }
