@@ -9,7 +9,12 @@
 # locally:
 #   git ls-remote --tags --refs origin | sed 's|.*refs/tags/||' \
 #     | .github/scripts/check-release-version.sh 0.2.0
+#
+# It runs nothing but bash: no here-strings, whose temporary file can fail
+# to be made, and no other programs, whose failure a condition would read
+# as "no such tag".
 set -euo pipefail
+export LC_ALL=C
 
 version=${1-}
 number='(0|[1-9][0-9]*)'
@@ -17,29 +22,56 @@ if [[ ! "$version" =~ ^$number\.$number\.$number$ ]]; then
   printf 'Not MAJOR.MINOR.PATCH, without a v: %q\n' "$version" >&2
   exit 1
 fi
+v1=${BASH_REMATCH[1]} v2=${BASH_REMATCH[2]} v3=${BASH_REMATCH[3]}
 
-tags=$(cat)
-if grep -Fxq -e "$version" -e "v$version" <<<"$tags"; then
+# Prints -1, 0 or 1 as the decimal number $1 is less than, equal to or
+# greater than $2, at any length and with any leading zeros.
+compare() {
+  local a=$1 b=$2
+  while [[ $a == 0?* ]]; do a=${a#0}; done
+  while [[ $b == 0?* ]]; do b=${b#0}; done
+  if (( ${#a} != ${#b} )); then
+    if (( ${#a} < ${#b} )); then echo -1; else echo 1; fi
+  elif [[ $a < $b ]]; then
+    echo -1
+  elif [[ $a > $b ]]; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
+# Prints -1, 0 or 1 as the version $1.$2.$3 is less than, equal to or
+# greater than $4.$5.$6, field by field.
+order() {
+  local result
+  result=$(compare "$1" "$4")
+  [[ $result != 0 ]] || result=$(compare "$2" "$5")
+  [[ $result != 0 ]] || result=$(compare "$3" "$6")
+  echo "$result"
+}
+
+tagged=false
+newest='' n1='' n2='' n3=''
+while IFS= read -r tag || [[ -n $tag ]]; do
+  if [[ $tag == "$version" || $tag == "v$version" ]]; then
+    tagged=true
+  fi
+  if [[ $tag =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+    t1=${BASH_REMATCH[1]} t2=${BASH_REMATCH[2]} t3=${BASH_REMATCH[3]}
+    if [[ -z $newest || $(order "$t1" "$t2" "$t3" "$n1" "$n2" "$n3") == 1 ]]; then
+      newest=$tag n1=$t1 n2=$t2 n3=$t3
+    fi
+  fi
+done
+
+if $tagged; then
   echo "$version is already tagged, as $version or v$version" >&2
   exit 1
 fi
-
-# Every MAJOR.MINOR.PATCH tag, with or without the v, compared field by
-# field as numbers.
-newest=$(
-  { grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' <<<"$tags" || true; } \
-    | sed 's/^v//' \
-    | sort -t. -k1,1n -k2,2n -k3,3n \
-    | tail -n 1
-)
-# A stable sort with the version first leaves it last only if it's greater
-# as numbers, not merely equal, as 1.0.0 is to a tag 01.0.0.
-if [[ -n "$newest" ]]; then
-  last=$(printf '%s\n%s\n' "$version" "$newest" | sort -s -t. -k1,1n -k2,2n -k3,3n | tail -n 1)
-  if [[ "$last" != "$version" || "$newest" == "$version" ]]; then
-    echo "$version isn't greater than $newest, the newest version tagged" >&2
-    exit 1
-  fi
+if [[ -n $newest && $(order "$v1" "$v2" "$v3" "$n1" "$n2" "$n3") != 1 ]]; then
+  echo "$version isn't greater than $newest, the newest version tagged" >&2
+  exit 1
 fi
 
 echo "v$version can be released; the newest version tagged so far is ${newest:-none}."
