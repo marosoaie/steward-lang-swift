@@ -117,14 +117,17 @@ struct NestingScanTests {
         #expect(NestingScan.firstExcess(in: source) == Excess(shape: .squareBrackets, line: 2))
     }
 
+    // A quarter of a megabyte: a scan quadratic in it would take hours, and
+    // a linear one takes milliseconds here, but up to a minute for a
+    // megabyte on a loaded Linux runner in a debug build.
     @Test(
         "the scan takes linear time on input made of what it looks at",
-        .timeLimit(.minutes(1)),
+        .timeLimit(.minutes(3)),
         arguments: ["#", "\"", "/*", "\\(", "<", "[]", "\"\\(", "#\"", "\n#if A"]
     )
     func linear(unit: String) {
-        let source = String(repeating: unit, count: 1_000_000 / unit.utf8.count)
+        let source = String(repeating: unit, count: 250_000 / unit.utf8.count)
         let elapsed = ContinuousClock().measure { _ = NestingScan.firstExcess(in: source) }
-        #expect(elapsed < .seconds(30), "a megabyte of \(unit.debugDescription) took \(elapsed)")
+        #expect(elapsed < .seconds(60), "250 KB of \(unit.debugDescription) took \(elapsed)")
     }
 }
