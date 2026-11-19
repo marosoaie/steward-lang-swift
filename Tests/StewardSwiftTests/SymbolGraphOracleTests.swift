@@ -66,8 +66,8 @@ struct SymbolGraphOracleTests {
             let model = file.functions.first { $0.name == name }?.documentation
             guard let compiled = compiler[name] else { return "\(name): not in the graph" }
             guard compiled == shapes[index].text, model == compiled else {
-                return "\(name): compiler \(compiled.debugDescription), shape \(shapes[index].text.debugDescription), "
-                    + "read \(model.debugDescription)"
+                let texts = [compiled, shapes[index].text, model].map(\.debugDescription)
+                return "\(name): compiler \(texts[0]), shape \(texts[1]), read \(texts[2])"
             }
             return nil
         }
