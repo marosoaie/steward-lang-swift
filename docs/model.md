@@ -137,6 +137,7 @@ One name a member block declares: `var a, b` is two.
 | `access` | Its `AccessLevel`. |
 | `isStatic` | Whether it's `static` or `class`. |
 | `isConditional` | Whether it's inside an `#if` in its block. |
+| `attributes` | Its declaration's `Attribute`s, in order, shared by every name it declares. |
 | `location` | The line of its name. |
 | `lines` | The whole declaration's lines. |
 

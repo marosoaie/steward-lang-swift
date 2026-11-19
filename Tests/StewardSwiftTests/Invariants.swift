@@ -66,6 +66,15 @@ enum Invariants {
                 sourceLocation: sourceLocation
             )
             #expect(
+                block.members.allSatisfy { member in
+                    member.attributes.allSatisfy {
+                        member.lines.contains($0.location.line ?? 0) && $0.location.path == file.path
+                    }
+                },
+                "an attribute of a member of \(block.owner) is outside the member's lines",
+                sourceLocation: sourceLocation
+            )
+            #expect(
                 block.functions.map(\.name) == block.members.filter { $0.kind == .function }.map(\.name),
                 "\(block.owner)'s functions and function members disagree",
                 sourceLocation: sourceLocation
