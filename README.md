@@ -162,7 +162,7 @@ expects holds.
 
 <!-- README: read-functions -->
 ```swift
-let file = try SwiftFile(source: """
+let file = try await SwiftFile(source: """
     public struct FeedLoader {
         /// Loads the feed at `url`.
         @discardableResult
@@ -193,7 +193,7 @@ and access), so two functions compare by what they declare.
 
 <!-- README: read-types -->
 ```swift
-let file = try SwiftFile(source: """
+let file = try await SwiftFile(source: """
     @MainActor
     public final class FeedModel: ObservableObject, Sendable {
         enum State { case idle, loading }
@@ -214,7 +214,7 @@ source order, for rules about order and about what an extension adds.
 
 <!-- README: read-members -->
 ```swift
-let file = try SwiftFile(source: """
+let file = try await SwiftFile(source: """
     struct Feed {
         static let shared = Feed()
         var items: [Item] = []
@@ -241,7 +241,7 @@ Every branch is read, since which one builds depends on the build:
 
 <!-- README: read-conditional-members -->
 ```swift
-let file = try SwiftFile(source: """
+let file = try await SwiftFile(source: """
     struct Feed {
         #if DEBUG
         func dump() {}
@@ -260,7 +260,7 @@ let members = file.memberBlocks[0].members
 
 <!-- README: read-imports -->
 ```swift
-let file = try SwiftFile(source: """
+let file = try await SwiftFile(source: """
     import Foundation
     @testable import FeedKit
     public import struct Models.Item
@@ -525,8 +525,9 @@ func asyncLoaders() async throws {
 }
 ```
 
-`SwiftFile(source:path:)` reads a source string directly, for a check
-written as a function of its own. Steward's
+`try await SwiftFile(source:path:)` reads a source string directly, for a
+check written as a function of its own; the caller's task suspends while
+a thread with a large stack parses it. Steward's
 [rule tests guide](https://github.com/marosoaie/swift-steward/blob/main/docs/rule-tests.md)
 has the rest.
 

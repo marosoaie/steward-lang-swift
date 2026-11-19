@@ -6,9 +6,9 @@ import Testing
 @Suite("The README: what a rule can read")
 struct ReadingExamples {
     @Test("a function's name, access, effects, return type, parameters and attributes are read")
-    func functions() throws {
+    func functions() async throws {
         // README: read-functions
-        let file = try SwiftFile(source: """
+        let file = try await SwiftFile(source: """
             public struct FeedLoader {
                 /// Loads the feed at `url`.
                 @discardableResult
@@ -33,9 +33,9 @@ struct ReadingExamples {
     }
 
     @Test("a type's kind, finality, inherited types, attributes and access are read")
-    func types() throws {
+    func types() async throws {
         // README: read-types
-        let file = try SwiftFile(source: """
+        let file = try await SwiftFile(source: """
             @MainActor
             public final class FeedModel: ObservableObject, Sendable {
                 enum State { case idle, loading }
@@ -51,9 +51,9 @@ struct ReadingExamples {
     }
 
     @Test("a member block's members are read in order, and an extension with its conformances")
-    func members() throws {
+    func members() async throws {
         // README: read-members
-        let file = try SwiftFile(source: """
+        let file = try await SwiftFile(source: """
             struct Feed {
                 static let shared = Feed()
                 var items: [Item] = []
@@ -76,9 +76,9 @@ struct ReadingExamples {
     }
 
     @Test("members under #if are read in every branch, and say so")
-    func conditionalMembers() throws {
+    func conditionalMembers() async throws {
         // README: read-conditional-members
-        let file = try SwiftFile(source: """
+        let file = try await SwiftFile(source: """
             struct Feed {
                 #if DEBUG
                 func dump() {}
@@ -95,9 +95,9 @@ struct ReadingExamples {
     }
 
     @Test("an import's module, attributes, access, kind, path and condition are read")
-    func imports() throws {
+    func imports() async throws {
         // README: read-imports
-        let file = try SwiftFile(source: """
+        let file = try await SwiftFile(source: """
             import Foundation
             @testable import FeedKit
             public import struct Models.Item

@@ -15,7 +15,7 @@ struct DocsTests {
     }
 
     @Test("docs/model.md has a section for each public model type, whose rows are its public properties, no more")
-    func model() throws {
+    func model() async throws {
         let reference = try String(
             contentsOf: Document.root.appendingPathComponent("docs/model.md"),
             encoding: .utf8
@@ -30,8 +30,10 @@ struct DocsTests {
         // Read with the model itself: the public types at the top of each
         // file, and the public properties and cases of their braces and of
         // the extensions of them.
-        let files = try names.map { name in
-            try SwiftFile(source: String(contentsOf: sources.appendingPathComponent(name), encoding: .utf8), path: name)
+        let files = try await names.asyncMap { name in
+            try await SwiftFile(
+                source: String(contentsOf: sources.appendingPathComponent(name), encoding: .utf8), path: name
+            )
         }
         let types = files.flatMap(\.types).filter { type in
             type.access.level >= .public && type.syntax.parent?.parent?.parent?.is(SourceFileSyntax.self) == true

@@ -13,9 +13,11 @@ A raw node (`syntax`) follows swift-syntax's version, not this package's.
 
 ## `SwiftFile`
 
-One file, read and checked: `SwiftFile(source:path:)` reads a source
-string, for a test or a check of your own, and throws a `SwiftFile.Refusal`
-for one it can't read safely ([SECURITY.md](../SECURITY.md)).
+One file, read and checked: `try await SwiftFile(source:path:)` reads a
+source string, for a test or a check of your own, and throws a
+`SwiftFile.Refusal` for one it can't read safely
+([SECURITY.md](../SECURITY.md)). It's `async`: the caller's task suspends
+while a thread with a large stack parses, holding no thread of the pool.
 
 | Property | What it holds |
 |---|---|
