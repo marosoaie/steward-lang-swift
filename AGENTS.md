@@ -252,7 +252,7 @@ read at the same line with the same name and argument labels, `async`,
 which the graph doesn't list, nor access levels that come from an
 extension's modifier, which the corpus never relies on: unit tests alone
 hold those, and only 9 of its functions are `async`. It also holds the
-doc comment of every function, type and member the graph lists (556
+doc comment of every function, type and member the graph lists (555
 have one) to `documentation`, leaving out the initializers the compiler
 makes, and compiles `DocumentationShape`'s shapes, the `/** */` forms
 the corpus lacks among them, into a package of their own to hold those

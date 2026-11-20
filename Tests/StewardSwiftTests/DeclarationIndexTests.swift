@@ -163,30 +163,39 @@ struct DeclarationIndexTests {
         #expect(scoped.keeps(.message("b", at: Location(path: decomposed, line: 2))))
     }
 
-    @Test("a file of 20,000 one-line members, each with a finding, is scoped in bounded time")
+    @Test("one-line members, each with a finding, are scoped in linear time: 10,000 take under three times 5,000's")
     func manyUnits() throws {
-        let members = (0..<20_000).map { "    var v\($0) = \($0)" }.joined(separator: "\n")
-        let source = "struct S {\n\(members)\n}\n"
         // A gate and a limit of the test's own, as below: what's timed is
-        // the scoping, and under a loaded run's other tests the read can
+        // the scoping, and under a loaded run's other tests a read can
         // outlast its deadline, which would refuse every later read on the
         // shared gate.
-        let file = try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
-        let changed = ChangedFile(
-            path: file.path,
-            contents: Array(source.utf8),
-            changedLines: LineRangeSet((2...20_001).filter { $0.isMultiple(of: 2) }.map { $0...$0 }),
-            linesAfterDeletions: LineRangeSet()
-        )
-        let clock = ContinuousClock()
-        var kept = 0
-        let elapsed = clock.measure {
-            let scoped = ScopedFindings(file: file, changed: changed, scope: .changedDeclarations)
-            kept = (1...20_002).count { scoped.keeps(.message("", at: Location(path: file.path, line: $0))) }
+        let scoping = { (count: Int) throws -> () -> Int in
+            let members = (0..<count).map { "    var v\($0) = \($0)" }.joined(separator: "\n")
+            let source = "struct S {\n\(members)\n}\n"
+            let file = try SwiftFile.read(
+                source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate()
+            )
+            let changed = ChangedFile(
+                path: file.path,
+                contents: Array(source.utf8),
+                changedLines: LineRangeSet((2...count + 1).filter { $0.isMultiple(of: 2) }.map { $0...$0 }),
+                linesAfterDeletions: LineRangeSet()
+            )
+            return {
+                let scoped = ScopedFindings(file: file, changed: changed, scope: .changedDeclarations)
+                return (1...count + 2).count { scoped.keeps(.message("", at: Location(path: file.path, line: $0))) }
+            }
         }
+        let (half, full) = (try scoping(5_000), try scoping(10_000))
         // The struct's own two lines are in it, which changed.
-        #expect(kept == 10_000 + 2)
-        #expect(elapsed < .seconds(10), "took \(elapsed)")
+        #expect(full() == 5_000 + 2)
+        // The faster of five, each way, taken in turns, as below. Linear
+        // scoping takes twice as long for twice the members; a judgment
+        // of each finding against every unit would take four times.
+        let clock = ContinuousClock()
+        let rounds = (0..<5).map { _ in (clock.measure { _ = half() }, clock.measure { _ = full() }) }
+        let (halfTime, fullTime) = (rounds.map(\.0).min() ?? .zero, rounds.map(\.1).min() ?? .zero)
+        #expect(fullTime < halfTime * 3, "\(fullTime) for 10,000 members, \(halfTime) for 5,000")
     }
 
     /// For every line of each file, `innermost(containing:)` against a
