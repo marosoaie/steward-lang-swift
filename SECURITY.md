@@ -82,14 +82,16 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
   and a second can then crash the run or exhaust its memory. The deadline
   is the backstop for time, but nothing in the process can catch a stack
   overflow or an exhausted memory. Such a run fails its check, which is
-  closed, but loses its report. With steward-action v0.1.1, its latest
-  release, the summary comment from an earlier push stays as it was, and
-  a first push gets none; steward-action's main branch replaces the
-  comment with "Steward didn't finish" and the reason (steward-action#11),
-  but no release has it yet. The log's last "checking" line names the
-  rule and the file. The containment is parsing in a process of its own,
-  which needs a hook in Steward; whether rules that read pull requests'
-  files wait for it is the maintainer's call.
+  closed, but loses its report. From v0.2.0, steward-action then replaces
+  the summary comment with "Steward didn't finish" and the reason
+  (steward-action#11), or posts one where there's none, unless the job
+  was cancelled or timed out or the token can't write, as on a fork's
+  pull request; before it, an earlier push's summary stayed as it was,
+  and a first push got none. The log's last "checking" line names the
+  rule and the file. The containment is
+  parsing in a process of its own, which needs a hook in Steward;
+  whether rules that read pull requests' files wait for it is the
+  maintainer's call.
 - **A rule's check has no time limit.** A hostile file can make a check
   that's slower than linear take long, and the job then runs to the
   workflow's limit: six hours unless the workflow sets `timeout-minutes`.

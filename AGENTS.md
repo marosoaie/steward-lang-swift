@@ -135,7 +135,7 @@ out of `/src` first so the two `.build` folders don't mix). GitHub's own
 actions are used at their major version tags, such as
 `actions/checkout@v7`, which move with each release; an action still at
 0.x, where a minor release may break, is pinned to an exact tag or a SHA:
-steward-action at `v0.1.1`. CI's token is read-only, but for
+steward-action at `v0.2.0`. CI's token is read-only, but for
 `macos-tests`, whose Steward step posts the summary comment
 (`pull-requests: write`); the only other token that can write is the
 release workflow's (below).

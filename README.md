@@ -139,7 +139,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
-      - uses: marosoaie/steward-action@v0.1.1
+      - uses: marosoaie/steward-action@v0.2.0
 ```
 
 ## What a rule can read
