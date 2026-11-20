@@ -163,7 +163,7 @@ struct DeclarationIndexTests {
         #expect(scoped.keeps(.message("b", at: Location(path: decomposed, line: 2))))
     }
 
-    @Test("one-line members, each with a finding, are scoped in linear time: 10,000 take under three times 5,000's")
+    @Test("one-line members, each with a finding, are scoped in linear time: 20,000 take under seven times 5,000's")
     func manyUnits() throws {
         // A gate and a limit of the test's own, as below: what's timed is
         // the scoping, and under a loaded run's other tests a read can
@@ -186,16 +186,17 @@ struct DeclarationIndexTests {
                 return (1...count + 2).count { scoped.keeps(.message("", at: Location(path: file.path, line: $0))) }
             }
         }
-        let (half, full) = (try scoping(5_000), try scoping(10_000))
+        let (quarter, full) = (try scoping(5_000), try scoping(20_000))
         // The struct's own two lines are in it, which changed.
-        #expect(full() == 5_000 + 2)
+        #expect(full() == 10_000 + 2)
         // The faster of five, each way, taken in turns, as below. Linear
-        // scoping takes twice as long for twice the members; a judgment
-        // of each finding against every unit would take four times.
+        // scoping takes four times as long for four times the members; a
+        // judgment of each finding against every unit would take sixteen.
+        // Seven is between them, with room either way for a loaded run.
         let clock = ContinuousClock()
-        let rounds = (0..<5).map { _ in (clock.measure { _ = half() }, clock.measure { _ = full() }) }
-        let (halfTime, fullTime) = (rounds.map(\.0).min() ?? .zero, rounds.map(\.1).min() ?? .zero)
-        #expect(fullTime < halfTime * 3, "\(fullTime) for 10,000 members, \(halfTime) for 5,000")
+        let rounds = (0..<5).map { _ in (clock.measure { _ = quarter() }, clock.measure { _ = full() }) }
+        let (quarterTime, fullTime) = (rounds.map(\.0).min() ?? .zero, rounds.map(\.1).min() ?? .zero)
+        #expect(fullTime < quarterTime * 7, "\(fullTime) for 20,000 members, \(quarterTime) for 5,000")
     }
 
     /// For every line of each file, `innermost(containing:)` against a
