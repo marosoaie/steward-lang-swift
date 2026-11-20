@@ -191,6 +191,13 @@ struct ReadmeTests {
         #expect(readme.contains("`\(range.1)`") && readme.contains("`\(range.2)`"))
         let minor = try #require(steward.firstMatch(of: /from: "([0-9]+\.[0-9]+)\.0"/))
         #expect(readme.contains("(\(minor.1) for now)"))
+        // And this package's: the requirement the prose quotes, and the
+        // release it says is current, are the manifest's.
+        let pin = try #require(manifest.firstMatch(
+            of: /steward-lang-swift\.git", (\.upToNextMinor\(from: "([0-9]+\.[0-9]+)\.0"\))/
+        ))
+        #expect(readme.contains("`\(pin.1)`"))
+        #expect(readme.contains("steward-lang-swift is at \(pin.2)."))
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("steward-lang-swift-tests-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: directory) }
