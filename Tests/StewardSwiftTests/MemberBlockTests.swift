@@ -166,8 +166,8 @@ struct MemberBlockTests {
             }
             """).memberBlocks.first)
         #expect(block.members.map(\.location.line) == [5, 6])
-        #expect(block.members.map(\.lines) == [3...6, 3...6])
-        #expect(block.lines == 1...7)
+        #expect(block.members.map(\.lineRange) == [3...6, 3...6])
+        #expect(block.lineRange == 1...7)
     }
 
     @Test("an ordering rule reads a block's functions in order")

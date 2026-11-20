@@ -51,7 +51,7 @@ A `func`. Initializers, subscripts and accessors aren't functions here;
 | `modifiers` | Its modifiers, in order, each spelled with no space or comment inside its parentheses, such as `mutating` or `nonisolated(nonsending)`. |
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `location` | The line of its name. |
-| `lines` | From its first attribute or modifier to its closing brace. |
+| `lineRange` | From its first attribute or modifier to its closing brace. |
 | `signature` | Its `FunctionSignature`, what it says to callers, as a value that compares. |
 | `syntax` | Its `FunctionDeclSyntax`. |
 
@@ -110,7 +110,7 @@ A struct, class, enum, actor or protocol (`kind`, a `TypeDeclaration.Kind`).
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `members` | The `Member`s of its own braces, in source order; an extension's are in `SwiftFile.memberBlocks`. |
 | `location` | The line of its name. |
-| `lines` | From its first attribute or modifier to its closing brace. |
+| `lineRange` | From its first attribute or modifier to its closing brace. |
 | `syntax` | Its declaration's node. |
 
 ## `MemberBlock`
@@ -128,7 +128,7 @@ what a rule about order reads.
 | `members` | The `Member`s, in source order, every branch of an `#if` included. |
 | `functions` | The members that are `func`s, as `FunctionDeclaration`s. |
 | `location` | The line of the owner's name, or of the extended type. |
-| `lines` | The owner's lines. |
+| `lineRange` | The owner's lines. |
 | `syntax` | Its `MemberBlockSyntax`, whose parent is the owner's declaration. |
 
 ## `Member`
@@ -147,7 +147,7 @@ One name a member block declares: `var a, b` is two.
 | `documentation` | Its declaration's doc comment's text, shared by every name it declares, or nil. |
 | `property` | A property's `Member.Property`, nil for every other kind. |
 | `location` | The line of its name. |
-| `lines` | The whole declaration's lines. |
+| `lineRange` | The whole declaration's lines. |
 
 A `Member.Property` holds a property's details as written:
 - `isConstant`, whether it's a `let`.

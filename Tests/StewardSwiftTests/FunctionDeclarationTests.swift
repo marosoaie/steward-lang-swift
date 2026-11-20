@@ -124,7 +124,7 @@ struct FunctionDeclarationTests {
 
             """)
         #expect(function.location == Location(path: Sample.path, line: 6))
-        #expect(function.lines == 4...10)
+        #expect(function.lineRange == 4...10)
     }
 
     @Test("a protocol requirement's lines end with its signature")
@@ -138,7 +138,7 @@ struct FunctionDeclarationTests {
             }
             """)
         #expect(function.location.line == 2)
-        #expect(function.lines == 2...4)
+        #expect(function.lineRange == 2...4)
     }
 
     @Test("a location goes straight into a finding")

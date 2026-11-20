@@ -63,7 +63,7 @@ public struct TypeDeclaration: Sendable {
 
     /// The lines from the first attribute or modifier, or the keyword, to
     /// the closing brace, without the comments before them.
-    public var lines: ClosedRange<Int>
+    public var lineRange: ClosedRange<Int>
 
     /// The declaration's syntax node: a `StructDeclSyntax`,
     /// `ClassDeclSyntax`, `EnumDeclSyntax`, `ActorDeclSyntax` or
@@ -105,7 +105,7 @@ extension TypeDeclaration {
             )
         }
         location = Location(path: path, line: lines.line(of: named.name))
-        self.lines = lines.lines(of: declaration)
+        lineRange = lines.lineRange(of: declaration)
         syntax = declaration
     }
 }

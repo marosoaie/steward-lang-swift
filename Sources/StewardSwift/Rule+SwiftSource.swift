@@ -220,23 +220,23 @@ struct SwiftSourceReading: Sendable {
 struct ScopedFindings: Sendable {
     let path: String
     let scope: SwiftSourceScope
-    let changedLines: LineRangeSet
-    let linesAfterDeletions: LineRangeSet
+    let changedLineNumbers: LineRangeSet
+    let lineNumbersAfterDeletions: LineRangeSet
     let index: DeclarationIndex
     let lineCount: Int
 
-    /// Whether the pull request changed any of `lines`: added or rewrote
-    /// one, or deleted lines just before one.
-    func changed(_ lines: ClosedRange<Int>) -> Bool {
-        changedLines.overlaps(lines) || linesAfterDeletions.overlaps(lines)
+    /// Whether the pull request changed any line in `lineRange`: added or
+    /// rewrote one, or deleted lines just before one.
+    func changed(_ lineRange: ClosedRange<Int>) -> Bool {
+        changedLineNumbers.overlaps(lineRange) || lineNumbersAfterDeletions.overlaps(lineRange)
     }
 
     /// The findings among `findings` the scope keeps, in their order,
     /// each line judged once: a check may report on thousands of
     /// declarations that share one line.
     func kept(_ findings: [Finding]) -> [Finding] {
-        let lines = Set(findings.compactMap(judgedLine(of:)))
-        let decisions = Dictionary(uniqueKeysWithValues: lines.map { ($0, keeps(line: $0)) })
+        let lineNumbers = Set(findings.compactMap(judgedLine(of:)))
+        let decisions = Dictionary(uniqueKeysWithValues: lineNumbers.map { ($0, keeps(line: $0)) })
         return findings.filter { finding in judgedLine(of: finding).map { decisions[$0] ?? true } ?? true }
     }
 
@@ -270,10 +270,10 @@ struct ScopedFindings: Sendable {
         // Each unit with a token on the line judges it: a change to any
         // keeps the finding, the safe side.
         guard scope == .changedTypes else {
-            return units.contains { changed(index.units[$0].lines) }
+            return units.contains { changed(index.units[$0].lineRange) }
         }
         return units.contains { unit in
-            index.container(of: unit, line: line).map { changed(index.units[$0].lines) } ?? true
+            index.container(of: unit, line: line).map { changed(index.units[$0].lineRange) } ?? true
         }
     }
 }
@@ -283,8 +283,8 @@ extension ScopedFindings {
         self.init(
             path: changed.path,
             scope: scope,
-            changedLines: changed.changedLines,
-            linesAfterDeletions: changed.linesAfterDeletions,
+            changedLineNumbers: changed.changedLineNumbers,
+            lineNumbersAfterDeletions: changed.lineNumbersAfterDeletions,
             index: DeclarationIndex(file: file),
             lineCount: file.sourceLines.count
         )

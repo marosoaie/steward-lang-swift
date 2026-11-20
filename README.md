@@ -73,7 +73,7 @@ let package = Package(
     name: "Dangerfile",
     platforms: [.macOS(.v26)],
     dependencies: [
-        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.3.0")),
+        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.4.0")),
         .package(url: "https://github.com/marosoaie/steward-lang-swift.git", .upToNextMinor(from: "0.2.0")),
     ],
     targets: [
@@ -94,7 +94,7 @@ let package = Package(
 
 - **Both packages, one minor release each.** A Dangerfile resolves one
   Steward for both, and each release of this package builds against one
-  Steward minor release (0.3 for now). Moving to the next Steward minor
+  Steward minor release (0.4 for now). Moving to the next Steward minor
   release waits for a release of this package that takes it. Keep
   swift-steward in the manifest even though `StewardSwift` brings
   `Steward`: the tests need `StewardTesting`, and the requirement is where
@@ -148,8 +148,8 @@ jobs:
 `types`, `memberBlocks` and `functions`, each at any depth (nested in
 types, local to functions) and in every branch of an `#if`. Each value
 has a `location` for a finding's `at:`. Functions, types, member blocks
-and members also have their `lines`, and the file, functions, types and
-member blocks their swift-syntax node, `syntax`, for what the model
+and members also have their `lineRange`, and the file, functions, types
+and member blocks their swift-syntax node, `syntax`, for what the model
 doesn't hold: `StewardSwift` re-exports SwiftSyntax, so its types need no
 import, and `file.location(of:)` gives such a node its location, as git
 counts lines. A raw node follows swift-syntax's version, not this
@@ -184,7 +184,7 @@ let load = file.functions[0]
 #expect(load.parameters[1].defaultValue == "3")
 #expect(load.attributes.map(\.name) == ["discardableResult"])
 #expect(load.location == Location(path: "Sources/Feed/FeedLoader.swift", line: 4))
-#expect(load.lines == 3...6)
+#expect(load.lineRange == 3...6)
 ```
 
 `signature` holds the declaration's parts as values (name, generic

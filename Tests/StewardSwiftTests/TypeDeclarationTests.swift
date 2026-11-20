@@ -88,7 +88,7 @@ struct TypeDeclarationTests {
             """).types.first)
         #expect(type.attributes.map(\.name) == ["MainActor", "available"])
         #expect(type.location == Location(path: Sample.path, line: 7))
-        #expect(type.lines == 4...9)
+        #expect(type.lineRange == 4...9)
         #expect(type.syntax.is(ClassDeclSyntax.self))
     }
 

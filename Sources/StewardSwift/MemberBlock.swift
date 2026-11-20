@@ -65,7 +65,7 @@ public struct MemberBlock: Sendable {
 
     /// The owner's lines, from its first attribute or modifier to its
     /// closing brace.
-    public var lines: ClosedRange<Int>
+    public var lineRange: ClosedRange<Int>
 
     /// The block's syntax node; its parent is the owner's declaration. It
     /// follows swift-syntax's version, not this package's.
@@ -105,7 +105,7 @@ extension MemberBlock {
         functions = Member.declarations(in: block)
             .compactMap { $0.declaration.as(FunctionDeclSyntax.self) }
             .map { FunctionDeclaration($0, path: path, lines: lines) }
-        self.lines = lines.lines(of: parent)
+        lineRange = lines.lineRange(of: parent)
         syntax = block
     }
 }

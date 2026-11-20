@@ -75,7 +75,7 @@ public struct FunctionDeclaration: Sendable {
     /// keyword, to the closing brace, or the end of the signature for a
     /// protocol requirement. Comments before the declaration, such as its
     /// documentation, aren't part of it.
-    public var lines: ClosedRange<Int>
+    public var lineRange: ClosedRange<Int>
 
     /// What the declaration says to callers, as data that compares.
     public var signature: FunctionSignature
@@ -106,7 +106,7 @@ extension FunctionDeclaration {
         modifiers = function.modifiers.map(\.normalizedSpelling)
         documentation = Documentation.text(of: function, lines: lines)
         location = Location(path: path, line: lines.line(of: function.name))
-        self.lines = lines.lines(of: function)
+        lineRange = lines.lineRange(of: function)
         self.signature = signature
         syntax = function
     }

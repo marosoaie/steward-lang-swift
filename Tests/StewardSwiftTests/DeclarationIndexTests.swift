@@ -28,7 +28,7 @@ struct DeclarationIndexTests {
 
             """)
         let units = DeclarationIndex(file: file).units
-        #expect(units.map(\.lines) == [1...1, 3...13, 5...7, 8...12, 10...10, 14...14, 16...16])
+        #expect(units.map(\.lineRange) == [1...1, 3...13, 5...7, 8...12, 10...10, 14...14, 16...16])
         #expect(units.map(\.parent) == [nil, nil, 1, 1, 3, nil, nil])
         #expect(units.map(\.body) == [nil, 5...13, nil, nil, nil, nil, nil])
     }
@@ -78,8 +78,8 @@ struct DeclarationIndexTests {
             let changed = ChangedFile(
                 path: file.path,
                 contents: Array(corpusFile.source.utf8),
-                changedLines: random(&generator),
-                linesAfterDeletions: random(&generator)
+                changedLineNumbers: random(&generator),
+                lineNumbersAfterDeletions: random(&generator)
             )
             let scoped = SwiftSourceScope.allCases.map { ScopedFindings(file: file, changed: changed, scope: $0) }
             (-1...(count + 1)).forEach { (line: Int) in
@@ -111,8 +111,8 @@ struct DeclarationIndexTests {
             ScopedFindings(
                 path: file.path,
                 scope: .changedDeclarations,
-                changedLines: LineRangeSet([changed...changed]),
-                linesAfterDeletions: LineRangeSet(),
+                changedLineNumbers: LineRangeSet([changed...changed]),
+                lineNumbersAfterDeletions: LineRangeSet(),
                 index: index,
                 lineCount: file.sourceLines.count
             ).keeps(.message("", at: Location(path: file.path, line: line)))
@@ -133,8 +133,8 @@ struct DeclarationIndexTests {
         let scoped = ScopedFindings(
             path: file.path,
             scope: .changedDeclarations,
-            changedLines: LineRangeSet([1...1]),
-            linesAfterDeletions: LineRangeSet(),
+            changedLineNumbers: LineRangeSet([1...1]),
+            lineNumbersAfterDeletions: LineRangeSet(),
             index: index,
             lineCount: file.sourceLines.count
         )
@@ -154,8 +154,8 @@ struct DeclarationIndexTests {
             changed: ChangedFile(
                 path: precomposed,
                 contents: [],
-                changedLines: LineRangeSet([1...1]),
-                linesAfterDeletions: LineRangeSet()
+                changedLineNumbers: LineRangeSet([1...1]),
+                lineNumbersAfterDeletions: LineRangeSet()
             ),
             scope: .changedDeclarations
         )
@@ -178,8 +178,8 @@ struct DeclarationIndexTests {
             let changed = ChangedFile(
                 path: file.path,
                 contents: Array(source.utf8),
-                changedLines: LineRangeSet((2...count + 1).filter { $0.isMultiple(of: 2) }.map { $0...$0 }),
-                linesAfterDeletions: LineRangeSet()
+                changedLineNumbers: LineRangeSet((2...count + 1).filter { $0.isMultiple(of: 2) }.map { $0...$0 }),
+                lineNumbersAfterDeletions: LineRangeSet()
             )
             return {
                 let scoped = ScopedFindings(file: file, changed: changed, scope: .changedDeclarations)
@@ -213,15 +213,15 @@ struct DeclarationIndexTests {
             }
             let index = DeclarationIndex(file: file)
             let units = index.units
-            #expect(units.map(\.lines.lowerBound) == units.map(\.lines.lowerBound).sorted(), "\(file.path)")
+            #expect(units.map(\.lineRange.lowerBound) == units.map(\.lineRange.lowerBound).sorted(), "\(file.path)")
             #expect(
                 units.allSatisfy { unit in
-                    unit.parent.map { units[$0].lines.contains(unit.lines.lowerBound) } ?? true
+                    unit.parent.map { units[$0].lineRange.contains(unit.lineRange.lowerBound) } ?? true
                 },
                 "\(file.path): a unit starts outside its parent"
             )
             (0...file.sourceLines.count + 1).forEach { line in
-                let searched = units.indices.last { units[$0].lines.contains(line) }
+                let searched = units.indices.last { units[$0].lineRange.contains(line) }
                 #expect(index.innermost(containing: line) == searched, "\(file.path):\(line)")
             }
         }
@@ -239,27 +239,29 @@ struct DeclarationIndexTests {
                 Issue.record("\(corpusFile.path) was refused: \(error)")
                 return
             }
-            let values = file.functions.map { ($0.location, $0.lines) } + file.types.map { ($0.location, $0.lines) }
-                + file.memberBlocks.flatMap { $0.members.map { ($0.location, $0.lines) } }
-                + file.memberBlocks.map { ($0.location, $0.lines) }
+            let values = file.functions.map { ($0.location, $0.lineRange) }
+                + file.types.map { ($0.location, $0.lineRange) }
+                + file.memberBlocks.flatMap { $0.members.map { ($0.location, $0.lineRange) } }
+                + file.memberBlocks.map { ($0.location, $0.lineRange) }
                 + file.imports.map { ($0.location, $0.location.line.map { $0...$0 } ?? 1...1) }
             let index = DeclarationIndex(file: file)
-            values.forEach { location, lines in
+            values.forEach { location, lineRange in
                 let finding = Finding.message("", at: location)
                 let keeps = { (changed: ClosedRange<Int>) in
                     ScopedFindings(
                         path: file.path,
                         scope: .changedDeclarations,
-                        changedLines: LineRangeSet([changed]),
-                        linesAfterDeletions: LineRangeSet(),
+                        changedLineNumbers: LineRangeSet([changed]),
+                        lineNumbersAfterDeletions: LineRangeSet(),
                         index: index,
                         lineCount: file.sourceLines.count
                     ).keeps(finding)
                 }
-                let what = "\(file.path):\(location.line ?? 0), lines \(lines)"
-                #expect(keeps(lines.lowerBound...lines.lowerBound), "\(what): its first line changed")
-                #expect(keeps(lines.upperBound...lines.upperBound), "\(what): its last line changed")
-                #expect(!keeps(lines.upperBound + 1...lines.upperBound + 1), "\(what): the line after it changed")
+                let what = "\(file.path):\(location.line ?? 0), lines \(lineRange)"
+                #expect(keeps(lineRange.lowerBound...lineRange.lowerBound), "\(what): its first line changed")
+                #expect(keeps(lineRange.upperBound...lineRange.upperBound), "\(what): its last line changed")
+                let after = lineRange.upperBound + 1
+                #expect(!keeps(after...after), "\(what): the line after it changed")
             }
         }
     }
@@ -274,8 +276,8 @@ extension DeclarationIndexTests {
         let scoped = ScopedFindings(
             path: file.path,
             scope: .changedDeclarations,
-            changedLines: LineRangeSet(),
-            linesAfterDeletions: LineRangeSet(),
+            changedLineNumbers: LineRangeSet(),
+            lineNumbersAfterDeletions: LineRangeSet(),
             index: DeclarationIndex(file: file),
             lineCount: file.sourceLines.count
         )
