@@ -24,7 +24,7 @@ about what the pull request changed, by `SwiftSourceScope`:
 `changedTypes` (for order and siblings) or `changedFiles`. The units a
 scope judges by are the declarations the model names and the top-level
 items (`DeclarationIndex`), and a unit counts as changed by
-`changedLines.overlaps(lines) || linesAfterDeletions.overlaps(lines)`.
+`changedLineNumbers.overlaps(lineRange) || lineNumbersAfterDeletions.overlaps(lineRange)`.
 For each file the rule logs "<rule>: checking <path>" first, so that the
 log of a run that dies names the rule and the file; a file with syntax
 errors is a skip, through `Finding.skipped`, and the check never sees it.
@@ -69,8 +69,9 @@ Two, and nothing else without the maintainer's word:
   dependencies, so swift-syntax lives here and never reaches a Dangerfile
   without Swift rules. The requirement is one minor release
   (`.upToNextMinor(from:)`), since a 0.x minor may break the API this
-  package builds against: 0.3, whose `Rule.changedFiles`,
-  `ChangedFile` and `Finding.skipped` `Rule.swiftSource` builds on.
+  package builds against: 0.4, whose `Rule.changedFiles`,
+  `ChangedFile` (with 0.4's names for its line numbers) and
+  `Finding.skipped` `Rule.swiftSource` builds on.
   A Dangerfile resolves one Steward
   for both packages, so each Steward minor release needs a release of
   this package before such a Dangerfile can move to it.
@@ -164,7 +165,11 @@ only, functional over imperative, the Swift API Design Guidelines with a
 doc comment on every public symbol, strict concurrency and memory safety
 with zero warnings, swift-testing with sentence-style names, and oracles
 over hand-computed expectations where one exists. Tests pass under both
-`swift test` and `xcodebuild test`.
+`swift test` and `xcodebuild test`. In a name, "lines" means lines of
+text: one span of line numbers is a `lineRange`, a set, list or per-file
+map of them is `…LineNumbers` (`changedLineNumbers`,
+`lineNumbersAfterDeletions`), and one number stays `line` or
+`lineNumber`.
 
 The source a rule reads is hostile input: a pull request's author writes
 it, and what a rule reports can end up in a public comment. Nothing here
