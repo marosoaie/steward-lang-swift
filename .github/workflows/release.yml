@@ -64,6 +64,21 @@ jobs:
       - name: Check the version
         run: git ls-remote --tags --refs origin | sed 's|.*refs/tags/||' | .github/scripts/check-release-version.sh "$VERSION"
 
+      # The pull request that names the release has merged (AGENTS.md,
+      # Git): the README's manifest pins this package to the release's
+      # MAJOR.MINOR.0, which a patch release keeps, and SECURITY.md says
+      # it's at MAJOR.MINOR; ReadmeTests holds the README's prose to the
+      # manifest. The version is MAJOR.MINOR.PATCH by now. For 0.x: at 1.0
+      # what a Dangerfile pins changes, and this with it.
+      - name: Check that the README and SECURITY.md name the release
+        run: |
+          minor=${VERSION%.*}
+          grep -Fq "steward-lang-swift.git\", .upToNextMinor(from: \"$minor.0\"))" README.md \
+            || { echo "::error::README.md's manifest doesn't pin steward-lang-swift with .upToNextMinor(from: \"$minor.0\"). Merge the pull request that names $minor first, then dispatch again."; exit 1; }
+          grep -Fq "steward-lang-swift is pre-1.0, at $minor." SECURITY.md \
+            || { echo "::error::SECURITY.md doesn't say steward-lang-swift is at $minor. Merge the pull request that names $minor first, then dispatch again."; exit 1; }
+          echo "README.md pins $minor.0, and SECURITY.md says $minor."
+
       - name: Select newest Xcode (Swift 6.2+ required)
         run: |
           sudo xcode-select -s "$(printf '%s\n' /Applications/Xcode*.app | sort -V | tail -1)"
