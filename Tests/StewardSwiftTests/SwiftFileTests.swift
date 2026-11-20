@@ -107,7 +107,7 @@ struct SwiftFileTests {
             ("let s = \"\"\"\n\n\"\"\"\nfunc a() {}", [4]),
         ]
     )
-    func lineCounting(source: String, lines: [Int]) throws {
-        #expect(try Sample.functions(in: source).map(\.location.line) == lines)
+    func lineCounting(source: String, lineNumbers: [Int]) throws {
+        #expect(try Sample.functions(in: source).map(\.location.line) == lineNumbers)
     }
 }
