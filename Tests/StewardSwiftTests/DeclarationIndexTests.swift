@@ -167,7 +167,11 @@ struct DeclarationIndexTests {
     func manyUnits() throws {
         let members = (0..<20_000).map { "    var v\($0) = \($0)" }.joined(separator: "\n")
         let source = "struct S {\n\(members)\n}\n"
-        let file = try SwiftFile(source: source, path: Sample.path)
+        // A gate and a limit of the test's own, as below: what's timed is
+        // the scoping, and under a loaded run's other tests the read can
+        // outlast its deadline, which would refuse every later read on the
+        // shared gate.
+        let file = try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
         let changed = ChangedFile(
             path: file.path,
             contents: Array(source.utf8),
@@ -287,14 +291,18 @@ extension DeclarationIndexTests {
             return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
         }
         let (flat, deep) = (try read(0), try read(95))
-        // The faster of three, each way, to see past a loaded machine. The
-        // walk this replaced took about six times as long under 95 `#if`s.
+        // The faster of five, each way, taken in turns, so that a loaded
+        // machine slows both alike: timed one way and then the other, the
+        // load a run's other tests put on the machine fell on one and not
+        // the other, and the two seemed twice as far apart as they are.
+        // Unloaded, they take about as long; the walk this replaced took
+        // about six times as long under 95 `#if`s.
         let clock = ContinuousClock()
-        let time = { (file: SwiftFile) in
-            (0..<3).map { _ in clock.measure { _ = DeclarationIndex(file: file) } }.min() ?? .zero
+        let rounds = (0..<5).map { _ in
+            (clock.measure { _ = DeclarationIndex(file: flat) }, clock.measure { _ = DeclarationIndex(file: deep) })
         }
         #expect(DeclarationIndex(file: deep).units.count == 20_000)
-        let (flatTime, deepTime) = (time(flat), time(deep))
+        let (flatTime, deepTime) = (rounds.map(\.0).min() ?? .zero, rounds.map(\.1).min() ?? .zero)
         #expect(deepTime < flatTime * 2 + .milliseconds(100), "\(deepTime) under 95 #if, \(flatTime) under none")
     }
 }
