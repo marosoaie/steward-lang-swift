@@ -283,7 +283,8 @@ records its numbers. Benchmark in a release build only.
   `gh workflow run release.yml --ref main -f version=0.2.0 -F notes=@notes.md`.
   It refuses a version that's already tagged, or isn't greater than
   every version tagged so far, with or without the `v`
-  (`.github/scripts/check-release-version.sh`); runs the tests, with a
+  (`.github/scripts/check-release-version.sh`), or that the README's
+  manifest doesn't name (the next bullet); runs the tests, with a
   read-only token; and then, in a job of its own that builds nothing
   and alone can write (`contents: write`), tags the commit `vX.Y.Z`, as
   swift-steward's are, publishes the release, and checks that the tag is
@@ -292,3 +293,13 @@ records its numbers. Benchmark in a release build only.
   stays, and SwiftPM reads both forms. A published release's tag can't
   be moved, nor deleted while the release exists, and its name can't be
   used again; its title and notes can still be edited.
+- Before a release that starts a minor, `MAJOR.MINOR.0`, a pull
+  request names it where a consumer reads the current release, and
+  merges just before the workflow runs: the README's manifest pins this
+  package with `.upToNextMinor(from: "MAJOR.MINOR.0")`, the prose
+  before it quotes that and says "at MAJOR.MINOR", and SECURITY.md's
+  "Supported versions" says "at MAJOR.MINOR" too (`ReadmeTests` holds
+  the prose and SECURITY.md to the manifest). A patch release keeps
+  `MAJOR.MINOR.0` and needs none. If the run fails after one merges,
+  fix forward or revert it: main doesn't keep naming a release that
+  doesn't exist.
