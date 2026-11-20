@@ -27,8 +27,10 @@ struct DependencyGraphTests {
         ])
     }
 
-    /// The rule that started the package, over the created files. Steward
-    /// 0.2 can't read a file's contents, so the sample stands in for them.
+    /// The rule that started the package, over the created files, written
+    /// with Steward's `Rule` and SwiftSyntax alone. It parses the sample in
+    /// place of each file at the head: what's under test is the graph, and
+    /// `Rule.swiftSource`, which reads the head, has tests of its own.
     static let asyncLoaders = Rule("Async loaders") { context in
         context.git.createdFiles.flatMap { path in
             let tree = Parser.parse(source: LoaderSample.source)
