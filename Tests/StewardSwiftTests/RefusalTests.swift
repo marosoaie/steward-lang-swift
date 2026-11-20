@@ -50,11 +50,15 @@ struct RefusalTests {
 
     @Test(
         "a parse that runs out of time is refused, and no other starts until it ends",
-        .timeLimit(.minutes(2))
+        // Five minutes, as the slow suites beside it have. A test's time counts
+        // its waits for a thread, and other tests' parses, which block theirs,
+        // can hold them all: alone this one takes 6 s, but beside the rest it
+        // ends with them, after up to two minutes on CI.
+        .timeLimit(.minutes(5))
     )
     func timeOutAndRunaway() async throws {
-        // About a megabyte of ordinary code: a second or two to parse in a
-        // debug build, far more than a millisecond.
+        // About a megabyte of ordinary code: a few seconds to parse in a debug
+        // build, far more than a millisecond.
         let slow = String(repeating: "let value = first + second * third - fourth\n", count: 24_000)
         let gate = ParseGate()
         #expect(throws: Refusal.timedOut(limit: .milliseconds(1))) {
