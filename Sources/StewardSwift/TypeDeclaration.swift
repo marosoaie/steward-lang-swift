@@ -32,8 +32,8 @@ public struct TypeDeclaration: Sendable {
     /// The access level, written out or not.
     public var access: AccessLevel
 
-    /// Whether the type is `final`. Other modifiers, such as `indirect`,
-    /// `distributed` and `nonisolated`, aren't read; `syntax` has them.
+    /// Whether the type is `final`. The other modifiers, such as
+    /// `indirect`, are in `modifiers`.
     public var isFinal: Bool
 
     /// The types after the colon, in order and as spelled: superclass,
@@ -42,6 +42,11 @@ public struct TypeDeclaration: Sendable {
 
     /// The attributes, in order, with those in each branch of an `#if`.
     public var attributes: [Attribute]
+
+    /// The modifiers, in order, each spelled with nothing inside its
+    /// parentheses: `public`, `final`, `indirect`, `nonisolated`. `access`
+    /// and `isFinal` are typed views of some of them.
+    public var modifiers: [String]
 
     /// The doc comment's text, read as `FunctionDeclaration.documentation`
     /// is, or nil when there's none.
@@ -87,6 +92,7 @@ extension TypeDeclaration {
         isFinal = group.modifiers.contains { $0.name.tokenKind == .keyword(.final) }
         inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
         attributes = Attribute.all(in: group.attributes, path: path, lines: lines)
+        modifiers = group.modifiers.map(\.normalizedSpelling)
         documentation = Documentation.text(of: declaration, lines: lines)
         members = Member.declarations(in: group.memberBlock).flatMap { member in
             Member.all(
