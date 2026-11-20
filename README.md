@@ -148,8 +148,8 @@ jobs:
 `types`, `memberBlocks` and `functions`, each at any depth (nested in
 types, local to functions) and in every branch of an `#if`. Each value
 has a `location` for a finding's `at:`. Functions, types, member blocks
-and members also have their `lines`, and the file, functions, types and
-member blocks their swift-syntax node, `syntax`, for what the model
+and members also have their `lineRange`, and the file, functions, types
+and member blocks their swift-syntax node, `syntax`, for what the model
 doesn't hold: `StewardSwift` re-exports SwiftSyntax, so its types need no
 import, and `file.location(of:)` gives such a node its location, as git
 counts lines. A raw node follows swift-syntax's version, not this
@@ -184,7 +184,7 @@ let load = file.functions[0]
 #expect(load.parameters[1].defaultValue == "3")
 #expect(load.attributes.map(\.name) == ["discardableResult"])
 #expect(load.location == Location(path: "Sources/Feed/FeedLoader.swift", line: 4))
-#expect(load.lines == 3...6)
+#expect(load.lineRange == 3...6)
 ```
 
 `signature` holds the declaration's parts as values (name, generic

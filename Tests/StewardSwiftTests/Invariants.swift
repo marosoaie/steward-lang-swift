@@ -8,26 +8,42 @@ enum Invariants {
     struct Span {
         var what: String
         var location: Location
-        var lines: ClosedRange<Int>
+        var lineRange: ClosedRange<Int>
+
+        /// The types, member blocks and members of `file`.
+        static func all(in file: SwiftFile) -> [Span] {
+            file.types.map { Span(what: "type \($0.name)", location: $0.location, lineRange: $0.lineRange) }
+                + file.memberBlocks.map {
+                    Span(what: "block of \($0.owner)", location: $0.location, lineRange: $0.lineRange)
+                }
+                + file.memberBlocks.flatMap { block in
+                    block.members.map {
+                        Span(what: "member \($0.name)", location: $0.location, lineRange: $0.lineRange)
+                    }
+                }
+        }
     }
 
     static func check(_ file: SwiftFile, source: String, sourceLocation: Testing.SourceLocation = #_sourceLocation) {
         let lineCount = source.utf8.reduce(1) { $1 == UInt8(ascii: "\n") ? $0 + 1 : $0 }
         let valid = 1...lineCount
         file.functions.forEach { function in
-            let lines = function.lines
-            #expect(valid.contains(lines.lowerBound) && valid.contains(lines.upperBound),
-                    "\(function.name)'s lines \(lines) are outside 1...\(lineCount)", sourceLocation: sourceLocation)
+            let lineRange = function.lineRange
+            #expect(
+                valid.contains(lineRange.lowerBound) && valid.contains(lineRange.upperBound),
+                "\(function.name)'s lines \(lineRange) are outside 1...\(lineCount)",
+                sourceLocation: sourceLocation
+            )
             #expect(function.location.path == file.path, sourceLocation: sourceLocation)
             #expect(
-                lines.contains(function.location.line ?? 0),
-                "\(function.name) at \(function.location) is outside its lines \(lines)",
+                lineRange.contains(function.location.line ?? 0),
+                "\(function.name) at \(function.location) is outside its lines \(lineRange)",
                 sourceLocation: sourceLocation
             )
             let parts = function.parameters.map(\.location) + function.attributes.map(\.location)
             #expect(
-                parts.allSatisfy { lines.contains($0.line ?? 0) && $0.path == file.path },
-                "\(function.name)'s parameters or attributes are outside its lines \(lines)",
+                parts.allSatisfy { lineRange.contains($0.line ?? 0) && $0.path == file.path },
+                "\(function.name)'s parameters or attributes are outside its lines \(lineRange)",
                 sourceLocation: sourceLocation
             )
         }
@@ -42,18 +58,12 @@ enum Invariants {
     ) {
         let lineCount = source.utf8.reduce(1) { $1 == UInt8(ascii: "\n") ? $0 + 1 : $0 }
         let valid = 1...lineCount
-        let spans: [Span] =
-            file.types.map { Span(what: "type \($0.name)", location: $0.location, lines: $0.lines) }
-            + file.memberBlocks.map { Span(what: "block of \($0.owner)", location: $0.location, lines: $0.lines) }
-            + file.memberBlocks.flatMap { block in
-                block.members.map { Span(what: "member \($0.name)", location: $0.location, lines: $0.lines) }
-            }
-        spans.forEach { span in
-            let (what, location, lines) = (span.what, span.location, span.lines)
+        Span.all(in: file).forEach { span in
+            let (what, location, lineRange) = (span.what, span.location, span.lineRange)
             #expect(
-                valid.contains(lines.lowerBound) && valid.contains(lines.upperBound)
-                    && lines.contains(location.line ?? 0) && location.path == file.path,
-                "\(what) at \(location) is outside its lines \(lines) or the file's 1...\(lineCount)",
+                valid.contains(lineRange.lowerBound) && valid.contains(lineRange.upperBound)
+                    && lineRange.contains(location.line ?? 0) && location.path == file.path,
+                "\(what) at \(location) is outside its lines \(lineRange) or the file's 1...\(lineCount)",
                 sourceLocation: sourceLocation
             )
         }
@@ -61,15 +71,16 @@ enum Invariants {
             let functionMembers = block.members.filter { $0.kind == .function }
             #expect(
                 block.members.allSatisfy {
-                    block.lines.contains($0.lines.lowerBound) && block.lines.contains($0.lines.upperBound)
+                    block.lineRange.contains($0.lineRange.lowerBound)
+                        && block.lineRange.contains($0.lineRange.upperBound)
                 },
-                "a member of \(block.owner) is outside its block's lines \(block.lines)",
+                "a member of \(block.owner) is outside its block's lines \(block.lineRange)",
                 sourceLocation: sourceLocation
             )
             #expect(
                 block.members.allSatisfy { member in
                     member.attributes.allSatisfy {
-                        member.lines.contains($0.location.line ?? 0) && $0.location.path == file.path
+                        member.lineRange.contains($0.location.line ?? 0) && $0.location.path == file.path
                     }
                 },
                 "an attribute of a member of \(block.owner) is outside the member's lines",

@@ -13,7 +13,7 @@ struct DeclarationIndex: Sendable {
     struct Unit: Sendable {
         /// From the comment lines directly above the unit, with no blank
         /// line between, to its last token.
-        var lines: ClosedRange<Int>
+        var lineRange: ClosedRange<Int>
         /// For a type or an extension, the lines inside its braces, from
         /// the one after the line of `{` to the line of `}`; nil for any
         /// other unit, and for braces with no line between them.
@@ -53,14 +53,14 @@ struct DeclarationIndex: Sendable {
         var high = units.count
         while low < high {
             let middle = low + (high - low) / 2
-            if units[middle].lines.lowerBound <= line {
+            if units[middle].lineRange.lowerBound <= line {
                 low = middle + 1
             } else {
                 high = middle
             }
         }
         guard low > 0 else { return nil }
-        return sequence(first: low - 1) { units[$0].parent }.first { units[$0].lines.contains(line) }
+        return sequence(first: low - 1) { units[$0].parent }.first { units[$0].lineRange.contains(line) }
     }
 
     /// The units a finding at `line` is judged by: every unit with a token
@@ -116,14 +116,14 @@ struct DeclarationIndex: Sendable {
             }
             if let token = node.as(TokenSyntax.self) {
                 guard let owner = open.last?.index, token.presence == .present else { continue }
-                lines.lines(of: token).forEach { line in
+                lines.lineRange(of: token).forEach { line in
                     if owners[line].last != owner {
                         owners[line].append(owner)
                     }
                 }
             } else if isUnit(node, topLevel: topLevel) {
                 units.append(Unit(
-                    lines: commentedLines(of: node, in: lines),
+                    lineRange: commentedLineRange(of: node, in: lines),
                     body: body(of: node, in: lines),
                     parent: open.last?.index
                 ))
@@ -136,8 +136,8 @@ struct DeclarationIndex: Sendable {
     /// The lines of `node`, from the comments directly above it, its doc
     /// comment among them, to its last token: a pull request that edits
     /// only a doc comment changes what it documents.
-    private static func commentedLines(of node: Syntax, in lines: SourceLines) -> ClosedRange<Int> {
-        let tokens = lines.lines(of: node)
+    private static func commentedLineRange(of node: Syntax, in lines: SourceLines) -> ClosedRange<Int> {
+        let tokens = lines.lineRange(of: node)
         // Back from the first token: comments, separated by one line break
         // at most, and the spaces around them.
         var offset = node.positionAfterSkippingLeadingTrivia.utf8Offset

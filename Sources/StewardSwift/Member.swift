@@ -78,7 +78,7 @@ public struct Member: Sendable, Hashable {
 
     /// The lines of the whole declaration, shared by the names it declares,
     /// without the comments before it.
-    public var lines: ClosedRange<Int>
+    public var lineRange: ClosedRange<Int>
 
     /// Creates a member, with no attributes, modifiers, doc comment or
     /// property details unless `attributes`, `modifiers`, `documentation`
@@ -94,7 +94,7 @@ public struct Member: Sendable, Hashable {
         documentation: String? = nil,
         property: Property? = nil,
         location: Location,
-        lines: ClosedRange<Int>
+        lineRange: ClosedRange<Int>
     ) {
         self.kind = kind
         self.name = name
@@ -106,7 +106,7 @@ public struct Member: Sendable, Hashable {
         self.documentation = documentation
         self.property = property
         self.location = location
-        self.lines = lines
+        self.lineRange = lineRange
     }
 }
 
@@ -145,7 +145,7 @@ extension Member {
         let attributes = declaration.asProtocol((any WithAttributesSyntax).self)
             .map { Attribute.all(in: $0.attributes, path: path, lines: lines) } ?? []
         let documentation = Documentation.text(of: declaration, lines: lines)
-        let span = lines.lines(of: declaration)
+        let lineRange = lines.lineRange(of: declaration)
         return names(of: declaration).map { declared in
             Member(
                 kind: declared.kind,
@@ -158,7 +158,7 @@ extension Member {
                 documentation: documentation,
                 property: declared.property,
                 location: Location(path: path, line: lines.line(of: declared.token)),
-                lines: span
+                lineRange: lineRange
             )
         }
     }

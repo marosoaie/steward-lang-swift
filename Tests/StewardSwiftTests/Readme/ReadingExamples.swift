@@ -28,7 +28,7 @@ struct ReadingExamples {
         #expect(load.parameters[1].defaultValue == "3")
         #expect(load.attributes.map(\.name) == ["discardableResult"])
         #expect(load.location == Location(path: "Sources/Feed/FeedLoader.swift", line: 4))
-        #expect(load.lines == 3...6)
+        #expect(load.lineRange == 3...6)
         // README: end
     }
 

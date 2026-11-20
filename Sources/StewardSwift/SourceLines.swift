@@ -46,7 +46,7 @@ struct SourceLines: Sendable {
 
     /// The lines `node` covers, from its first token to its last, without
     /// the trivia around them.
-    func lines(of node: some SyntaxProtocol) -> ClosedRange<Int> {
+    func lineRange(of node: some SyntaxProtocol) -> ClosedRange<Int> {
         let start = node.positionAfterSkippingLeadingTrivia.utf8Offset
         let end = node.endPositionBeforeTrailingTrivia.utf8Offset
         let first = line(atUTF8Offset: start)
