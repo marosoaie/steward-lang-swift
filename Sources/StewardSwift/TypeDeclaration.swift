@@ -43,9 +43,10 @@ public struct TypeDeclaration: Sendable {
     /// The attributes, in order, with those in each branch of an `#if`.
     public var attributes: [Attribute]
 
-    /// The modifiers, in order, each spelled with nothing inside its
-    /// parentheses: `public`, `final`, `indirect`, `nonisolated`. `access`
-    /// and `isFinal` are typed views of some of them.
+    /// The modifiers, in order, each spelled with no space or comment
+    /// inside its parentheses: `public`, `final`, `indirect`,
+    /// `nonisolated`. `access` and `isFinal` are typed views of some of
+    /// them.
     public var modifiers: [String]
 
     /// The doc comment's text, read as `FunctionDeclaration.documentation`

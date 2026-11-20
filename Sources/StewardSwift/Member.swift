@@ -55,10 +55,11 @@ public struct Member: Sendable, Hashable {
     /// make it so (SECURITY.md).
     public var attributes: [Attribute]
 
-    /// The modifiers, in order, each spelled with nothing inside its
-    /// parentheses: `weak`, `lazy`, `override`, `private(set)`. They're the
-    /// declaration's, shared by the names it declares, as its attributes
-    /// are. `access` and `isStatic` are typed views of some of them.
+    /// The modifiers, in order, each spelled with no space or comment
+    /// inside its parentheses: `weak`, `lazy`, `override`, `private(set)`.
+    /// They're the declaration's, shared by the names it declares, as its
+    /// attributes are. `access` and `isStatic` are typed views of some of
+    /// them.
     public var modifiers: [String]
 
     /// The doc comment's text, read as `FunctionDeclaration.documentation`

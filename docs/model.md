@@ -48,7 +48,7 @@ A `func`. Initializers, subscripts and accessors aren't functions here;
 | `returnType` | The `TypeName` after `->`, or nil. |
 | `parameters` | Its `Parameter`s, in order. |
 | `attributes` | Its `Attribute`s, in order. |
-| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `mutating` or `nonisolated(nonsending)`. |
+| `modifiers` | Its modifiers, in order, each spelled with no space or comment inside its parentheses, such as `mutating` or `nonisolated(nonsending)`. |
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `location` | The line of its name. |
 | `lines` | From its first attribute or modifier to its closing brace. |
