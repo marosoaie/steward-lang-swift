@@ -123,7 +123,7 @@ jobs:
       # rules. Pinned to a release: steward-action is at 0.x.
       - name: Steward
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        uses: marosoaie/steward-action@v0.1.1
+        uses: marosoaie/steward-action@v0.2.0
 
       # The recipes compile and do what docs/recipes.md says, on every event.
       - name: Test the Dangerfile's rules

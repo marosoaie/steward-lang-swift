@@ -219,7 +219,7 @@ struct ReadmeTests {
     @Test("the README's workflow pins steward-action exactly and limits the job's time")
     func workflow() throws {
         let workflow = try Document(Document.readme).block("workflow").text
-        #expect(workflow.contains("uses: marosoaie/steward-action@v0.1.1"))
+        #expect(workflow.contains("uses: marosoaie/steward-action@v0.2.0"))
         #expect(workflow.contains("timeout-minutes:"))
     }
 }

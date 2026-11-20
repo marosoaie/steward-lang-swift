@@ -199,7 +199,7 @@ static let concatenatedLiterals = Rule.swiftSource("Concatenated literals") { fi
 build's and SwiftLint's output to `build.log` and `swiftlint.log`, then
 runs this Dangerfile through
 [steward-action](https://github.com/marosoaie/steward-action), pinned at
-`v0.1.1`, on pull requests. Its first rule reports the diagnostics in
+`v0.2.0`, on pull requests. Its first rule reports the diagnostics in
 those logs that land on the lines the pull request changes, and the rest
 are the recipes above. The Dangerfile depends on the checkout it sits in
 (`path: ".."`), so each pull request is checked by its own model and
