@@ -143,6 +143,6 @@ make it, and the steward-lang-swift version or commit.
 
 ## Supported versions
 
-steward-lang-swift is pre-1.0, at 0.2. Fixes land on `main` and ship in
+steward-lang-swift is pre-1.0, at 0.3. Fixes land on `main` and ship in
 the next release; earlier releases don't get backported fixes, and a
 published release is never changed.
