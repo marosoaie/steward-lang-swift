@@ -96,14 +96,14 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
   Set it. That's true of every rule in Steward; a limit per rule would be
   Steward's runner's. A check can be quadratic without looking it: the
   names a declaration declares share its attributes, its modifiers and
-  its doc comment, so a check that reads each member's `attributes`, such
-  as one looking for `@Published`, does names × attributes work on a
-  declaration with thousands of each, and one that searches each
-  member's `documentation`, names × the comment's length. So does hashing
-  the members, as `Set(members)` does, since a member's hash takes in
-  all three. In a release build, such a check takes ten seconds on a
-  128 KiB file of that shape and nine minutes on a 1 MiB one; a debug
-  build, as a Dangerfile usually is, is slower.
+  its doc comment (and `var a, b: T`'s share `T`), so a check that reads
+  each member's `attributes`, such as one looking for `@Published`, does
+  names × attributes work on a declaration with thousands of each, and
+  one that searches each member's `documentation`, names × the comment's
+  length. So does hashing the members, as `Set(members)` does, since a
+  member's hash takes in all of them. In a release build, such a check
+  takes ten seconds on a 128 KiB file of that shape and nine minutes on a
+  1 MiB one; a debug build, as a Dangerfile usually is, is slower.
 - **It can refuse honest source**, rarely: 513 comparisons with no `{`,
   `}`, `;` or assignment between them, or a run of regex literals holding
   an unescaped `[`. A refusal fails the rule, so please report one as an

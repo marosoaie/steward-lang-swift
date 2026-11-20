@@ -42,9 +42,10 @@ public struct FunctionDeclaration: Sendable {
     /// `#if` among them.
     public var attributes: [Attribute]
 
-    /// The modifiers, in order, each spelled with nothing inside its
-    /// parentheses: `override`, `mutating`, `nonisolated(nonsending)`.
-    /// `access` and `isStatic` are typed views of some of them.
+    /// The modifiers, in order, each spelled with no space or comment
+    /// inside its parentheses: `override`, `mutating`,
+    /// `nonisolated(nonsending)`. `access` and `isStatic` are typed views of
+    /// some of them.
     public var modifiers: [String]
 
     /// The doc comment's text without its markers, read as the compiler

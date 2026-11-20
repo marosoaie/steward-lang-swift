@@ -55,10 +55,11 @@ public struct Member: Sendable, Hashable {
     /// make it so (SECURITY.md).
     public var attributes: [Attribute]
 
-    /// The modifiers, in order, each spelled with nothing inside its
-    /// parentheses: `weak`, `lazy`, `override`, `private(set)`. They're the
-    /// declaration's, shared by the names it declares, as its attributes
-    /// are. `access` and `isStatic` are typed views of some of them.
+    /// The modifiers, in order, each spelled with no space or comment
+    /// inside its parentheses: `weak`, `lazy`, `override`, `private(set)`.
+    /// They're the declaration's, shared by the names it declares, as its
+    /// attributes are. `access` and `isStatic` are typed views of some of
+    /// them.
     public var modifiers: [String]
 
     /// The doc comment's text, read as `FunctionDeclaration.documentation`
@@ -66,6 +67,10 @@ public struct Member: Sendable, Hashable {
     /// it declares, as its attributes are, at the same cost to a check that
     /// reads every member's (SECURITY.md).
     public var documentation: String?
+
+    /// A property's details, as written: whether it's a `let`, whether it's
+    /// stored, its type and its initial value. Nil for every other kind.
+    public var property: Property?
 
     /// The line of the member's name, or of its keyword when it has no
     /// name.
@@ -75,8 +80,9 @@ public struct Member: Sendable, Hashable {
     /// without the comments before it.
     public var lines: ClosedRange<Int>
 
-    /// Creates a member, with no attributes, modifiers or doc comment
-    /// unless `attributes`, `modifiers` and `documentation` give them.
+    /// Creates a member, with no attributes, modifiers, doc comment or
+    /// property details unless `attributes`, `modifiers`, `documentation`
+    /// and `property` give them.
     public init(
         kind: Kind,
         name: String,
@@ -86,6 +92,7 @@ public struct Member: Sendable, Hashable {
         attributes: [Attribute] = [],
         modifiers: [String] = [],
         documentation: String? = nil,
+        property: Property? = nil,
         location: Location,
         lines: ClosedRange<Int>
     ) {
@@ -97,6 +104,7 @@ public struct Member: Sendable, Hashable {
         self.attributes = attributes
         self.modifiers = modifiers
         self.documentation = documentation
+        self.property = property
         self.location = location
         self.lines = lines
     }
@@ -148,6 +156,7 @@ extension Member {
                 attributes: attributes,
                 modifiers: modifiers,
                 documentation: documentation,
+                property: declared.property,
                 location: Location(path: path, line: lines.line(of: declared.token)),
                 lines: span
             )
@@ -160,6 +169,7 @@ extension Member {
         var kind: Kind
         var name: String
         var token: TokenSyntax
+        var property: Property?
     }
 
     /// The kinds of the declarations that have a `name` token.
@@ -190,10 +200,13 @@ extension Member {
         case .macroExpansionDecl(let macro):
             return [DeclaredName(kind: .macroExpansion, name: macro.macroName.unescapedText, token: macro.macroName)]
         case .variableDecl(let variable):
-            return variable.bindings.flatMap { binding in
-                binding.pattern.preorder()
-                    .compactMap { $0.as(IdentifierPatternSyntax.self) }
-                    .map { DeclaredName(kind: .property, name: $0.identifier.unescapedText, token: $0.identifier) }
+            return Property.all(in: variable).map { pattern, property in
+                DeclaredName(
+                    kind: .property,
+                    name: pattern.identifier.unescapedText,
+                    token: pattern.identifier,
+                    property: property
+                )
             }
         case .enumCaseDecl(let enumCase):
             return enumCase.elements.map { DeclaredName(kind: .case, name: $0.name.unescapedText, token: $0.name) }
