@@ -70,8 +70,9 @@ Two, and nothing else without the maintainer's word:
   without Swift rules. The requirement is one minor release
   (`.upToNextMinor(from:)`), since a 0.x minor may break the API this
   package builds against: 0.4, whose `Rule.changedFiles`,
-  `ChangedFile` (with 0.4's names for its line numbers) and
-  `Finding.skipped` `Rule.swiftSource` builds on.
+  `ChangedFile` (its `changedLineNumbers` and
+  `lineNumbersAfterDeletions`) and `Finding.skipped` `Rule.swiftSource`
+  builds on.
   A Dangerfile resolves one Steward
   for both packages, so each Steward minor release needs a release of
   this package before such a Dangerfile can move to it.
