@@ -36,41 +36,80 @@ public struct TypeName: Sendable, Hashable, ExpressibleByStringLiteral, CustomSt
     }
 
     /// Whether the two names are spelled the same apart from whitespace
-    /// that doesn't separate two words.
+    /// that doesn't separate two words. It reads the spellings only as far
+    /// as their first difference, so comparing a long name with a short one
+    /// costs the short one's length.
     public static func == (lhs: TypeName, rhs: TypeName) -> Bool {
-        lhs.comparableSpelling == rhs.comparableSpelling
+        lhs.comparableScalars.elementsEqual(rhs.comparableScalars)
     }
 
     /// Hashes the spelling as `==` compares it.
     public func hash(into hasher: inout Hasher) {
-        hasher.combine(comparableSpelling)
+        comparableScalars.forEach { hasher.combine($0.value) }
+        // No scalar has this value, so a name's part of a hash ends here.
+        hasher.combine(UInt32.max)
     }
 
-    /// The spelling with each run of whitespace dropped, unless it
-    /// separates two words (`any Error`, `inout Int`), where it's one space.
-    private var comparableSpelling: String {
-        let scalars = Array(spelling.unicodeScalars)
-        let kept = scalars.indices.compactMap { index -> Unicode.Scalar? in
-            let scalar = scalars[index]
-            guard scalar.properties.isWhitespace else { return scalar }
-            // The run's first space stands for the run, between two words;
-            // the rest of the run looks no further, so this stays linear.
-            guard index > 0, !scalars[index - 1].properties.isWhitespace else { return nil }
-            let after = scalars[index...].first { !$0.properties.isWhitespace }
-            return scalars[index - 1].isWordScalar && (after?.isWordScalar ?? false) ? " " : nil
+    /// The spelling's scalars with each run of whitespace dropped, unless it
+    /// separates two words (`any Error`, `inout Int`), where it's one space;
+    /// read as they're asked for, with nothing built.
+    private var comparableScalars: ComparableScalars {
+        ComparableScalars(scalars: spelling.unicodeScalars.makeIterator())
+    }
+}
+
+/// A spelling's scalars as `TypeName` compares them: each run of whitespace
+/// dropped, unless it separates two words, where it's one space.
+private struct ComparableScalars: Sequence, IteratorProtocol {
+    var scalars: String.UnicodeScalarView.Iterator
+    /// The last scalar given, to tell whether a run of whitespace follows a
+    /// word.
+    var previous: Unicode.Scalar?
+    /// The scalar after a run of whitespace, read to see whether the run
+    /// separates two words, and given after the space that stands for it.
+    var pending: Unicode.Scalar?
+
+    mutating func next() -> Unicode.Scalar? {
+        if let scalar = pending {
+            pending = nil
+            previous = scalar
+            return scalar
         }
-        var result = String.UnicodeScalarView()
-        result.append(contentsOf: kept)
-        return String(result)
+        guard let scalar = scalars.next() else { return nil }
+        guard scalar.isTypeNameWhitespace else {
+            previous = scalar
+            return scalar
+        }
+        // An imperative loop: the rest of the run is skipped, and the
+        // scalar after it decides whether the run was between two words.
+        var after = scalars.next()
+        while let next = after, next.isTypeNameWhitespace {
+            after = scalars.next()
+        }
+        guard let next = after else { return nil }
+        guard previous?.isWordScalar == true, next.isWordScalar else {
+            previous = next
+            return next
+        }
+        pending = next
+        previous = " "
+        return " "
     }
 }
 
 extension Unicode.Scalar {
+    /// Whether the scalar is whitespace, as Unicode defines it, without a
+    /// look at its properties for ASCII.
+    fileprivate var isTypeNameWhitespace: Bool {
+        value < 0x80 ? value == 0x20 || (0x09...0x0D).contains(value) : properties.isWhitespace
+    }
+
     /// Whether the scalar can be part of an identifier or a keyword: every
     /// one beyond ASCII counts, since identifiers can hold emoji and other
-    /// symbols.
+    /// symbols, and in ASCII, letters, digits, `_` and `$`.
     fileprivate var isWordScalar: Bool {
-        value >= 0x80 || properties.isAlphabetic || properties.numericType != nil || self == "_" || self == "$"
+        value >= 0x80 || ("a"..."z").contains(self) || ("A"..."Z").contains(self) || ("0"..."9").contains(self)
+            || self == "_" || self == "$"
     }
 }
 

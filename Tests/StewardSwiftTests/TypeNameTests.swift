@@ -52,6 +52,71 @@ struct TypeNameTests {
         #expect(TypeName(lhs) != TypeName(rhs))
     }
 
+    @Test("names compare and hash as their spellings do with whitespace normalized, whatever the whitespace")
+    func comparisonMatchesNormalization() {
+        // The normalization `==` and `hash(into:)` follow, built in full, as
+        // TypeName did before it compared scalar by scalar.
+        func normalized(_ spelling: String) -> String {
+            let scalars = Array(spelling.unicodeScalars)
+            let isWord = { (scalar: Unicode.Scalar) in
+                scalar.value >= 0x80 || scalar.properties.isAlphabetic || scalar.properties.numericType != nil
+                    || scalar == "_" || scalar == "$"
+            }
+            let kept = scalars.indices.compactMap { index -> Unicode.Scalar? in
+                let scalar = scalars[index]
+                guard scalar.properties.isWhitespace else { return scalar }
+                guard index > 0, !scalars[index - 1].properties.isWhitespace else { return nil }
+                let after = scalars[index...].first { !$0.properties.isWhitespace }
+                return isWord(scalars[index - 1]) && (after.map(isWord) ?? false) ? " " : nil
+            }
+            return String(String.UnicodeScalarView(kept))
+        }
+        let bases = [
+            "[String: Int]", "any Error", "anyError", "inout Int", "Result<Data, any Error>", "some P",
+            "(Int) async throws -> Void", "any 😀", "any😀", "Dictionary<String, [Int]>", "@escaping () -> Void",
+            "Int?", "$T", "_Foo", "a1 b2", "a1b2", "Combine.Published", "é x", "",
+        ]
+        let whitespace = [" ", "  ", "\t", "\n", "\r\n", "\u{A0}", "\u{2003}", " \n\t ", "\u{3000}"]
+        var generator = SeededGenerator(seed: 16)
+        let variants = bases.flatMap { base in
+            (0..<12).map { _ in
+                var scalars = Array(base.unicodeScalars)
+                (0..<Int.random(in: 1...3, using: &generator)).forEach { _ in
+                    let at = Int.random(in: 0...scalars.count, using: &generator)
+                    scalars.insert(contentsOf: whitespace.randomElement(using: &generator)!.unicodeScalars, at: at)
+                }
+                return String(String.UnicodeScalarView(scalars))
+            }
+        }
+        let spellings = bases + variants
+        let differing = spellings.flatMap { lhs in
+            spellings.compactMap { rhs -> String? in
+                let (left, right) = (TypeName(lhs), TypeName(rhs))
+                let equal = normalized(lhs) == normalized(rhs)
+                guard left == right, equal else {
+                    return left == right || equal ? "\(lhs.debugDescription) and \(rhs.debugDescription)" : nil
+                }
+                let names = "\(lhs.debugDescription), \(rhs.debugDescription)"
+                return left.hashValue == right.hashValue ? nil : "hashes of \(names)"
+            }
+        }
+        #expect(spellings.count > 200)
+        #expect(differing.isEmpty, "\(differing.count): \(differing.prefix(10))")
+    }
+
+    @Test("comparing a long name with a short one reads only as far as they differ")
+    func comparisonStopsEarly() {
+        // `var a0, a1, …: (Int, Int, …)` lends one long type to every name,
+        // and a rule compares each with a short one. Built in full, a
+        // comparison read all of the long one: 100 here took seconds.
+        let long = TypeName("(" + String(repeating: "Int, ", count: 200_000) + "Int)")
+        let clock = ContinuousClock()
+        var equal = 0
+        let elapsed = clock.measure { equal = (0..<100).count { _ in long == "Int" || long == "(Int)" } }
+        #expect(equal == 0)
+        #expect(elapsed < .seconds(1), "took \(elapsed)")
+    }
+
     @Test("a name compares with a string literal and describes itself by its spelling")
     func literal() {
         let name = TypeName("Result<Data, Error>")

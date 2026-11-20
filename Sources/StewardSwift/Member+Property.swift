@@ -25,7 +25,10 @@ extension Member {
         /// `let (a, b) = pair`. A name with neither a type nor a value has
         /// the type of the name after it when that name has no value
         /// either, as Swift gives it: `a` has `Int` in `var a, b: Int`, but
-        /// none in `var a, b: Int = 0`, which Swift rejects.
+        /// none in `var a, b: Int = 0`, which Swift rejects. Names that share
+        /// a type share its storage: comparing one with another name reads
+        /// only as far as they differ, but hashing each reads all of it
+        /// (SECURITY.md).
         public var type: TypeName?
 
         /// The initial value's spelling, or nil when there's none, or when
