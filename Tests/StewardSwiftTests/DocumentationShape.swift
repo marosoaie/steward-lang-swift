@@ -63,6 +63,7 @@ struct DocumentationShape: Sendable, CustomTestStringConvertible {
         Self(source: "/**\n * \u{301}A\n */\npublic func NAME() {}", text: "\u{301}A"),
         Self(source: "///\u{0B}A\n///  B\npublic func NAME() {}", text: "A\n B"),
         Self(source: "///\u{0C}A\n///  B\npublic func NAME() {}", text: "A\n B"),
+        Self(source: "/// A\n///\u{0B}\u{0B}\npublic func NAME() {}", text: "A"),
         Self(source: "/// crlf A\r\n/// crlf B\r\npublic func NAME() {}", text: "crlf A\ncrlf B"),
         // Block comments: the decoration goes only when `/**` ends its line
         // and the stars line up under it.

@@ -43,7 +43,8 @@ public struct FunctionDeclaration: Sendable {
     public var attributes: [Attribute]
 
     /// The modifiers, in order, each spelled with nothing inside its
-    /// parentheses: `override`, `mutating`, `nonisolated(unsafe)`.
+    /// parentheses: `override`, `mutating`, `nonisolated(unsafe)` or
+    /// `nonisolated(nonsending)`.
     /// `access` and `isStatic` are typed views of some of them.
     public var modifiers: [String]
 

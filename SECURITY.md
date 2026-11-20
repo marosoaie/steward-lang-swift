@@ -96,7 +96,8 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
   Set it. That's true of every rule in Steward; a limit per rule would be
   Steward's runner's. A check can be quadratic without looking it: the
   names a declaration declares share its attributes, its modifiers and
-  its doc comment (and `var a, b: T`'s share `T`), so a check that reads each member's `attributes`, such
+  its doc comment (and `var a, b: T`'s share `T`), so a check that reads
+  each member's `attributes`, such
   as one looking for `@Published`, does names × attributes work on a
   declaration with thousands of each, and one that searches each
   member's `documentation`, names × the comment's length. So does hashing

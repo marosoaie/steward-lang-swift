@@ -36,12 +36,16 @@ extension SyntaxProtocol {
     }
 
     /// The tokens' text as the source writes it, without comments, and
-    /// with one space wherever trivia separates two tokens. Escaped
-    /// identifiers lose their backticks.
+    /// with one space wherever trivia separates two tokens, but none around
+    /// the `.` or `::` of a qualified name: `Combine .Published` is spelled
+    /// `Combine.Published`. Escaped identifiers lose their backticks.
     var spelling: String {
         let tokens = preorder().compactMap { $0.as(TokenSyntax.self) }
         let pieces = zip([nil] + tokens.map(Optional.some), tokens).map { previous, token in
-            let separated = previous.map { !$0.trailingTrivia.isEmpty || !token.leadingTrivia.isEmpty } ?? false
+            let separated = previous.map {
+                (!$0.trailingTrivia.isEmpty || !token.leadingTrivia.isEmpty)
+                    && !$0.isQualifier && !token.isQualifier
+            } ?? false
             return (separated ? " " : "") + token.unescapedText
         }
         return pieces.joined()
@@ -52,6 +56,23 @@ extension TokenSyntax {
     /// The token's text, without backticks if it's an escaped identifier.
     var unescapedText: String {
         identifier?.name ?? text
+    }
+
+    /// Whether the token joins the parts of a qualified name: the dot of a
+    /// member type, such as `Combine.Published`, of a metatype, such as
+    /// `Int.Type`, or of an import path, such as `Foundation.Data`, or a
+    /// module selector's `::`, such as `Swift::Int`. A member access's dot,
+    /// as in `.long`, isn't one.
+    var isQualifier: Bool {
+        let isDot = parent?.as(MemberTypeSyntax.self)?.period.id == id
+            || parent?.as(MetatypeTypeSyntax.self)?.period.id == id
+            || parent?.as(ImportPathComponentSyntax.self)?.trailingPeriod?.id == id
+        #if canImport(SwiftSyntax603)
+        // Module selectors came with swift-syntax 603; 602 has no `::`.
+        return isDot || parent?.as(ModuleSelectorSyntax.self)?.colonColon.id == id
+        #else
+        return isDot
+        #endif
     }
 }
 

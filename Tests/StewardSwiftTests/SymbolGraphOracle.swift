@@ -190,9 +190,12 @@ private struct GraphDocComment: Decodable {
     var lines: [GraphDocLine]
 
     /// The lines, joined, without whitespace-only lines at the start and
-    /// the end, which the model drops.
+    /// the end, which the model drops: whitespace as the compiler counts
+    /// indentation, spaces, tabs, vertical tabs and form feeds.
     var text: String {
-        let isBlank = { (line: GraphDocLine) in line.text.allSatisfy { $0 == " " || $0 == "\t" } }
+        let isBlank = { (line: GraphDocLine) in
+            line.text.unicodeScalars.allSatisfy { [" ", "\t", "\u{0B}", "\u{0C}"].contains($0) }
+        }
         let lastText = lines.lastIndex { !isBlank($0) } ?? -1
         return lines.prefix(lastText + 1).drop(while: isBlank).map(\.text).joined(separator: "\n")
     }

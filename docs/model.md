@@ -48,7 +48,7 @@ A `func`. Initializers, subscripts and accessors aren't functions here;
 | `returnType` | The `TypeName` after `->`, or nil. |
 | `parameters` | Its `Parameter`s, in order. |
 | `attributes` | Its `Attribute`s, in order. |
-| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `private(set)`. |
+| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `mutating` or `nonisolated(nonsending)`. |
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `location` | The line of its name. |
 | `lines` | From its first attribute or modifier to its closing brace. |
@@ -90,7 +90,7 @@ One of a function's parameters, as written.
 
 | Property | What it holds |
 |---|---|
-| `name` | The name without the `@`, such as `MainActor` or `available`. |
+| `name` | The name without the `@`, such as `MainActor` or `available`; `Combine.Published` for `@Combine .Published`. |
 | `arguments` | What its parentheses hold, such as `*, deprecated`, or nil. |
 | `location` | The line of the `@`. |
 
@@ -106,7 +106,7 @@ A struct, class, enum, actor or protocol (`kind`, a `TypeDeclaration.Kind`).
 | `isFinal` | Whether it's `final`. |
 | `inheritedTypes` | The `TypeName`s after the colon, in order: superclass, protocols, raw value type. |
 | `attributes` | Its `Attribute`s, in order. |
-| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `private(set)`. |
+| `modifiers` | Its modifiers, in order, such as `final` or `indirect`. |
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `members` | The `Member`s of its own braces, in source order; an extension's are in `SwiftFile.memberBlocks`. |
 | `location` | The line of its name. |
@@ -160,7 +160,7 @@ A `Member.Property` holds a property's details as written:
 | Property | What it holds |
 |---|---|
 | `module` | The module, the path's first component: `Models` for `import struct Models.Item`. |
-| `path` | The whole path, such as `Models.Item`. |
+| `path` | The whole path, such as `Models.Item`, with nothing around its dots. |
 | `kind` | The kind a scoped import names, such as `struct`, or nil. |
 | `attributes` | Its `Attribute`s, such as `testable`. |
 | `access` | The access level it writes out, such as `public` in `public import`, or nil. |
@@ -174,7 +174,7 @@ A string literal is one, so `returnType == "LoadResult"` reads as it says.
 
 | Property | What it holds |
 |---|---|
-| `spelling` | The spelling without comments, each run of whitespace between tokens one space. |
+| `spelling` | The spelling without comments, each run of whitespace between tokens one space, and none around a qualified name's `.` or `::`. |
 
 ## `AccessLevel`
 
