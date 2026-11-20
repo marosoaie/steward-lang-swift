@@ -17,15 +17,19 @@ extension Member {
         /// `willSet` and `didSet`. A property wrapper, or a macro such as
         /// `@Observable`, changes the real storage, which the syntax doesn't
         /// show; a computed property isn't stored, nor is a protocol's
-        /// requirement, `{ get set }`.
+        /// requirement, `{ get set }`. An `override` with only observers
+        /// reads as stored, though it observes the property it overrides;
+        /// `modifiers` has the `override`.
         public var isStored: Bool
 
         /// The type as written, or nil when it isn't: inferred, as in
         /// `var count = 0`, or the name is in a tuple pattern, as in
         /// `let (a, b) = pair`. A name with neither a type nor a value has
         /// the type of the name after it when that name has no value
-        /// either, as Swift gives it: `a` has `Int` in `var a, b: Int`, but
-        /// none in `var a, b: Int = 0`, which Swift rejects. Names that share
+        /// either and is a plain name, as Swift gives it: `a` has `Int` in
+        /// `var a, b: Int`, but none in `var a, b: Int = 0`, nor in
+        /// `var a, (b, c): (Int, Int)` or `var a, _: Int`, which Swift
+        /// rejects. Names that share
         /// a type share its storage: comparing one with another name reads
         /// only as far as they differ, but hashing each reads all of it
         /// (SECURITY.md).
@@ -52,12 +56,13 @@ extension Member.Property {
         let bindings = Array(variable.bindings)
         // From the last binding back: one with neither a type nor a value
         // takes the type of the binding after it, if that one has no value
-        // either; one with a value lends its type to none.
+        // either and is a plain name; one with a value, a tuple or `_`
+        // lends its type to none.
         let types = bindings.reversed().reduce(into: (types: [TypeName?](), lent: TypeName?.none)) { state, binding in
             let written = binding.typeAnnotation.map { TypeName($0.type) }
             let type = written ?? (binding.initializer == nil ? state.lent : nil)
             state.types.append(type)
-            state.lent = binding.initializer == nil ? type : nil
+            state.lent = binding.initializer == nil && binding.pattern.is(IdentifierPatternSyntax.self) ? type : nil
         }.types
         return zip(bindings, types.reversed()).flatMap { binding, type in
             let isStored = isStored(binding.accessorBlock)

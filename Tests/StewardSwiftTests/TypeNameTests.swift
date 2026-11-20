@@ -46,6 +46,8 @@ struct TypeNameTests {
             ("Int?", "Optional<Int>"), ("Swift.Int", "Int"), ("[Int]", "Array<Int>"),
             // Whitespace between two words separates them.
             ("any Error", "anyError"), ("some P", "someP"), ("inout Int", "inoutInt"), ("any 😀", "any😀"),
+            // Precomposed and decomposed, as the compiler tells them apart.
+            ("Caf\u{E9}", "Cafe\u{301}"),
         ]
     )
     func spellingNotResolution(lhs: String, rhs: String) {

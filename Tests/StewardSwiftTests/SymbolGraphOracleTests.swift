@@ -100,18 +100,22 @@ struct SymbolGraphOracleTests {
     /// What the model reads differently from the graph's declaration of a
     /// property, or nil. The graph prints the type it infers, so the type
     /// is compared only where the source writes one. It prints `{ get }` or
-    /// `{ get set }` after a property that isn't stored, but also after one
-    /// with a property wrapper (which it prints first, `@Option var …`),
-    /// whose storage the wrapper replaces, and after one whose setter is
-    /// less visible (`private(set)`), which it prints `{ get }`; for those,
-    /// whether it's stored as written isn't compared.
+    /// `{ get set }` after a property that isn't stored, but also after
+    /// some that are, as written, for which storage isn't compared: one
+    /// with an attribute it prints first (`@Option var …`, a property
+    /// wrapper among them, whose storage the wrapper replaces), one whose
+    /// setter is less visible (`private(set)`, `{ get }`), and a `lazy`
+    /// one. It prints `{ get set }` after one with `willSet` or `didSet`
+    /// too, which the corpus has none of; a corpus that has one would show
+    /// here as a difference.
     static func propertyDifference(
         _ property: Member.Property,
         of member: Member,
         _ expected: SymbolGraphOracle.Documented
     ) -> String? {
         let isConstant: Bool = expected.keywords.contains("let")
-        let showsStorage = !expected.declaration.hasPrefix("@") && !member.modifiers.contains { $0.hasSuffix("(set)") }
+        let showsStorage = !expected.declaration.hasPrefix("@")
+            && !member.modifiers.contains { $0.hasSuffix("(set)") || $0 == "lazy" }
         let isStored: Bool = showsStorage ? !expected.declaration.hasSuffix("}") : property.isStored
         let afterColon: Substring = expected.declaration.split(separator: ": ", maxSplits: 1).dropFirst().first ?? ""
         let printedType = String(afterColon.split(separator: " {", maxSplits: 1).first ?? afterColon)

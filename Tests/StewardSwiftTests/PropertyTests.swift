@@ -58,19 +58,24 @@ struct PropertyTests {
                 var e, f: Int, g = 3
                 var h, i: Int = 0
                 var s, t: Int = 1, u: Int
+                var w, (x, y): (Int, Int)
+                var z, _: Int
                 let (j, k) = (1, 2)
                 let (l, m): (Int, Int) = (3, 4)
             }
             """)
-        // Swift rejects `h` and `s` ("type annotation missing in pattern"):
-        // a binding with a value lends its type to none before it.
+        // Swift rejects `h`, `s`, `w` and `z` ("type annotation missing in
+        // pattern"): a binding with a value, a tuple or `_` lends its type
+        // to none before it.
         #expect(properties.mapValues { $0?.type?.spelling } == [
             "a": "Int", "b": "Int", "c": nil, "d": "Double", "e": "Int", "f": "Int", "g": nil,
-            "h": nil, "i": "Int", "s": nil, "t": "Int", "u": "Int", "j": nil, "k": nil, "l": nil, "m": nil,
+            "h": nil, "i": "Int", "s": nil, "t": "Int", "u": "Int", "w": nil, "x": nil, "y": nil, "z": nil,
+            "j": nil, "k": nil, "l": nil, "m": nil,
         ])
         #expect(properties.mapValues { $0?.initialValue } == [
             "a": nil, "b": nil, "c": "1", "d": nil, "e": nil, "f": nil, "g": "3",
-            "h": nil, "i": "0", "s": nil, "t": "1", "u": nil, "j": nil, "k": nil, "l": nil, "m": nil,
+            "h": nil, "i": "0", "s": nil, "t": "1", "u": nil, "w": nil, "x": nil, "y": nil, "z": nil,
+            "j": nil, "k": nil, "l": nil, "m": nil,
         ])
         #expect(properties.values.allSatisfy { $0?.isStored == true })
         #expect(properties.filter { $0.value?.isConstant == true }.keys.sorted() == ["j", "k", "l", "m"])

@@ -8,7 +8,10 @@ import SwiftSyntax
 /// Two names are equal when they're spelled the same apart from whitespace
 /// that doesn't separate two words, so `[String:Int]` in the source equals
 /// the literal `"[String: Int]"`, but `any Error` doesn't equal `anyError`;
-/// comments inside a type don't count:
+/// comments inside a type don't count. Names compare scalar by scalar, so a
+/// letter spelled precomposed and the same letter decomposed, `é` and `e`
+/// with a combining accent, make different names, as they do to the
+/// compiler, though their `spelling`s are equal as `String`s:
 ///
 /// ```swift
 /// file.functions.filter { $0.returnType == "LoadResult" }
