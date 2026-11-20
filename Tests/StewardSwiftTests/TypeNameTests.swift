@@ -12,6 +12,13 @@ struct TypeNameTests {
             ("[ /* counts */ Int]", "[ Int]"),
             ("`Type`", "Type"),
             ("@escaping @Sendable (Int) async throws -> Void", "@escaping @Sendable (Int) async throws -> Void"),
+            // A qualified name has nothing around its dots.
+            ("Combine .Published", "Combine.Published"),
+            ("Combine . Published", "Combine.Published"),
+            ("Combine\n    .Published", "Combine.Published"),
+            ("[Module /* why */ .Holder]", "[Module.Holder]"),
+            ("Result<Module .Value, any Error>", "Result<Module.Value, any Error>"),
+            ("Int . Type", "Int.Type"),
         ]
     )
     func spelling(type: String, spelling: String) throws {

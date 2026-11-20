@@ -88,7 +88,7 @@ One of a function's parameters, as written.
 
 | Property | What it holds |
 |---|---|
-| `name` | The name without the `@`, such as `MainActor` or `available`. |
+| `name` | The name without the `@`, such as `MainActor` or `available`; `Combine.Published` for `@Combine .Published`. |
 | `arguments` | What its parentheses hold, such as `*, deprecated`, or nil. |
 | `location` | The line of the `@`. |
 
@@ -146,7 +146,7 @@ One name a member block declares: `var a, b` is two.
 | Property | What it holds |
 |---|---|
 | `module` | The module, the path's first component: `Models` for `import struct Models.Item`. |
-| `path` | The whole path, such as `Models.Item`. |
+| `path` | The whole path, such as `Models.Item`, with nothing around its dots. |
 | `kind` | The kind a scoped import names, such as `struct`, or nil. |
 | `attributes` | Its `Attribute`s, such as `testable`. |
 | `access` | The access level it writes out, such as `public` in `public import`, or nil. |
@@ -160,7 +160,7 @@ A string literal is one, so `returnType == "LoadResult"` reads as it says.
 
 | Property | What it holds |
 |---|---|
-| `spelling` | The spelling without comments, each run of whitespace between tokens one space. |
+| `spelling` | The spelling without comments, each run of whitespace between tokens one space, and none around a qualified name's `.` or `::`. |
 
 ## `AccessLevel`
 
