@@ -48,7 +48,7 @@ A `func`. Initializers, subscripts and accessors aren't functions here;
 | `returnType` | The `TypeName` after `->`, or nil. |
 | `parameters` | Its `Parameter`s, in order. |
 | `attributes` | Its `Attribute`s, in order. |
-| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `private(set)`. |
+| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `mutating` or `nonisolated(nonsending)`. |
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `location` | The line of its name. |
 | `lines` | From its first attribute or modifier to its closing brace. |
@@ -106,7 +106,7 @@ A struct, class, enum, actor or protocol (`kind`, a `TypeDeclaration.Kind`).
 | `isFinal` | Whether it's `final`. |
 | `inheritedTypes` | The `TypeName`s after the colon, in order: superclass, protocols, raw value type. |
 | `attributes` | Its `Attribute`s, in order. |
-| `modifiers` | Its modifiers, in order, each spelled with nothing inside its parentheses, such as `private(set)`. |
+| `modifiers` | Its modifiers, in order, such as `final` or `indirect`. |
 | `documentation` | Its doc comment's text without the markers, read as the compiler reads it, or nil. |
 | `members` | The `Member`s of its own braces, in source order; an extension's are in `SwiftFile.memberBlocks`. |
 | `location` | The line of its name. |
