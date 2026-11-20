@@ -58,19 +58,10 @@ extension Checks {
     // README: end
 
     // README: documented-public-api
-    /// A public function has a doc comment, read from its syntax node's
-    /// leading trivia: SwiftSyntax comes with the import.
+    /// A public function has a doc comment.
     static let documentedPublicAPI = Rule.swiftSource("Documented public API") { file in
         file.functions
-            .filter { $0.access.level >= .public }
-            .filter { function in
-                !function.syntax.leadingTrivia.contains { piece in
-                    switch piece {
-                    case .docLineComment, .docBlockComment: true
-                    default: false
-                    }
-                }
-            }
+            .filter { $0.access.level >= .public && $0.documentation == nil }
             .map { .warning("Public function \(Markdown.codeSpan($0.name)) has no doc comment.", at: $0.location) }
     }
     // README: end

@@ -43,6 +43,10 @@ public struct TypeDeclaration: Sendable {
     /// The attributes, in order, with those in each branch of an `#if`.
     public var attributes: [Attribute]
 
+    /// The doc comment's text, read as `FunctionDeclaration.documentation`
+    /// is, or nil when there's none.
+    public var documentation: String?
+
     /// The members of the type's own block, in source order, with those in
     /// each branch of an `#if` marked as conditional. An extension's members
     /// are in `SwiftFile.memberBlocks`.
@@ -83,6 +87,7 @@ extension TypeDeclaration {
         isFinal = group.modifiers.contains { $0.name.tokenKind == .keyword(.final) }
         inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
         attributes = Attribute.all(in: group.attributes, path: path, lines: lines)
+        documentation = Documentation.text(of: declaration, lines: lines)
         members = Member.declarations(in: group.memberBlock).flatMap { member in
             Member.all(
                 in: member.declaration,

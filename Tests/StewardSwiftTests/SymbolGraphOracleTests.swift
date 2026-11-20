@@ -6,13 +6,16 @@ import Testing
 /// The model against the compiler: every function swift-argument-parser's
 /// symbol graph lists, at minimum access level `private`, is read at the
 /// same line with the same name and argument labels, `async`, `throws`,
-/// access level and `static`.
+/// access level and `static`; and every function, type and member it
+/// lists, with the same doc comment.
 ///
 /// What the corpus doesn't exercise: the graph lists no local functions,
 /// and no function in it takes its access level from an extension's
 /// modifier, so those parts of `AccessLevel` are held by unit tests only.
 /// Only 9 of its 345 functions are `async`, and few are protocol
-/// requirements.
+/// requirements. None of its doc comments is a `/** */` block, so
+/// `DocumentationShape`'s shapes, compiled into a package of their own,
+/// hold those, and the other shapes of a doc comment.
 @Suite("Symbol graph oracle", .enabled(if: SymbolGraphOracle.isEnabled), .timeLimit(.minutes(20)))
 struct SymbolGraphOracleTests {
     @Test("every function in the compiler's symbol graph is read alike")
@@ -34,6 +37,62 @@ struct SymbolGraphOracleTests {
             differences.isEmpty,
             "\(differences.count) differences:\n\(differences.prefix(40).joined(separator: "\n"))"
         )
+    }
+
+    @Test("every symbol's doc comment in the compiler's symbol graph is read alike")
+    func documentationMatchesTheSymbolGraph() async throws {
+        let graph = try await SymbolGraphOracle.graph.value
+        #expect(graph.documented.filter { $0.documentation != nil }.count > 500)
+        let byFile = Dictionary(grouping: graph.documented, by: \.path)
+        let differences = try byFile.keys.sorted().flatMap { path -> [String] in
+            let data = try Data(contentsOf: graph.root.appendingPathComponent(path))
+            let file = try SwiftFile(source: String(decoding: data, as: UTF8.self), path: path)
+            return (byFile[path] ?? []).compactMap { expected in Self.documentationDifference(expected, in: file) }
+        }
+        #expect(
+            differences.isEmpty,
+            "\(differences.count) differences:\n\(differences.prefix(40).joined(separator: "\n"))"
+        )
+    }
+
+    @Test("every doc comment shape is read as the compiler reads it, and as the shape says")
+    func shapesMatchTheCompiler() throws {
+        let shapes = DocumentationShape.all
+        let source = shapes.indices.map { shapes[$0].source(naming: "shape\($0)") }.joined(separator: "\n\n")
+        let compiler = try SymbolGraphOracle.documentation(ofSymbolsIn: source)
+        let file = try SwiftFile(source: source, path: "Shapes.swift")
+        let differences = shapes.indices.compactMap { index -> String? in
+            let name = "shape\(index)"
+            let model = file.functions.first { $0.name == name }?.documentation
+            guard let compiled = compiler[name] else { return "\(name): not in the graph" }
+            guard compiled == shapes[index].text, model == compiled else {
+                let texts = [compiled, shapes[index].text, model].map(\.debugDescription)
+                return "\(name): compiler \(texts[0]), shape \(texts[1]), read \(texts[2])"
+            }
+            return nil
+        }
+        #expect(differences.isEmpty, "\(differences.joined(separator: "\n"))")
+    }
+
+    /// What the model reads differently from the graph for `expected`'s doc
+    /// comment, or nil when every value at its line with its name reads it
+    /// alike: a function, a type, a member, and a type's member block.
+    static func documentationDifference(_ expected: SymbolGraphOracle.Documented, in file: SwiftFile) -> String? {
+        let atLine = { (location: Location, name: String) in location.line == expected.line && name == expected.name }
+        let functions = file.functions.filter { atLine($0.location, $0.name) }.map(\.documentation)
+        let types = file.types.filter { atLine($0.location, $0.name) }.map(\.documentation)
+        let members = file.memberBlocks.flatMap(\.members).filter { atLine($0.location, $0.name) }.map(\.documentation)
+        let blocks = file.memberBlocks.filter { block in
+            guard case .type(_, let name) = block.owner else { return false }
+            return atLine(block.location, name)
+        }
+        let read: [String?] = functions + types + members + blocks.map(\.documentation)
+        if read.isEmpty {
+            return "\(expected): not read"
+        }
+        let differing = read.filter { $0 != expected.documentation }
+        guard let first = differing.first else { return nil }
+        return "\(expected): read \(first.debugDescription), compiler \(expected.documentation.debugDescription)"
     }
 
     /// What the model reads differently from the graph for `expected`, or

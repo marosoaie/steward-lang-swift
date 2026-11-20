@@ -95,9 +95,12 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
   workflow's limit: six hours unless the workflow sets `timeout-minutes`.
   Set it. That's true of every rule in Steward; a limit per rule would be
   Steward's runner's. A check can be quadratic without looking it: the
-  names a declaration declares share its attributes, so a check that
-  reads each member's `attributes`, such as one looking for `@Published`,
-  does names × attributes work on a declaration with thousands of each.
+  names a declaration declares share its attributes and its doc comment,
+  so a check that reads each member's `attributes`, such as one looking
+  for `@Published`, does names × attributes work on a declaration with
+  thousands of each, and one that searches each member's
+  `documentation`, names × the comment's length. So does hashing the
+  members, as `Set(members)` does, since a member's hash takes in both.
   In a release build, such a check takes ten seconds on a 128 KiB file of
   that shape and nine minutes on a 1 MiB one; a debug build, as a
   Dangerfile usually is, is slower.

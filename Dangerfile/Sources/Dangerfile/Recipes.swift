@@ -11,14 +11,8 @@ extension Checks {
         file.types
             .filter { $0.kind == .class || $0.kind == .actor }
             .filter { type in
-                !type.syntax.leadingTrivia.contains { piece in
-                    switch piece {
-                    case .docLineComment(let text), .docBlockComment(let text):
-                        text.contains("A class") || text.contains("An actor")
-                    default:
-                        false
-                    }
-                }
+                let documentation = type.documentation ?? ""
+                return !documentation.contains("A class") && !documentation.contains("An actor")
             }
             .map { type in
                 .warning(
@@ -35,22 +29,12 @@ extension Checks {
     /// missed when only the extension's header changes, as is a
     /// requirement of a protocol that becomes public.
     static let documentedPublicAPI = Rule.swiftSource("Documented public API", in: "Sources/**/*.swift") { file in
-        let types = file.types.filter { $0.access.level >= .public && !isDocumented($0.syntax) }
+        let types = file.types.filter { $0.access.level >= .public && $0.documentation == nil }
             .map { ($0.name, $0.location) }
-        let functions = file.functions.filter { $0.access.level >= .public && !isDocumented($0.syntax) }
+        let functions = file.functions.filter { $0.access.level >= .public && $0.documentation == nil }
             .map { ($0.name, $0.location) }
         return (types + functions).map { name, location in
             .warning("Public \(Markdown.codeSpan(name)) has no doc comment.", at: location)
-        }
-    }
-
-    /// Whether `declaration` has a doc comment in the trivia before it.
-    static func isDocumented(_ declaration: some SyntaxProtocol) -> Bool {
-        declaration.leadingTrivia.contains { piece in
-            switch piece {
-            case .docLineComment, .docBlockComment: true
-            default: false
-            }
         }
     }
     // Recipe: end

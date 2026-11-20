@@ -2,11 +2,12 @@ import Foundation
 import StewardSwift
 import Testing
 
-/// The compiler's view of swift-argument-parser's functions: its symbol
-/// graph, at the minimum access level `private`, which the compiler writes
-/// while it builds the package. (`swift package dump-symbol-graph` would
-/// do too, but before Swift 6.4 it also extracts the package's test
-/// module, which fails, so the command exits with an error.)
+/// The compiler's view of swift-argument-parser's functions, types and
+/// members, and their doc comments: its symbol graph, at the minimum
+/// access level `private`, which the compiler writes while it builds the
+/// package. (`swift package dump-symbol-graph` would do too, but before
+/// Swift 6.4 it also extracts the package's test module, which fails, so
+/// the command exits with an error.)
 ///
 /// Building takes a minute, so the tests that read it run only when
 /// `STEWARD_SWIFT_ORACLE=1` is set (CI's macos-tests job sets it).
@@ -32,11 +33,30 @@ enum SymbolGraphOracle {
         }
     }
 
-    /// The checkout whose sources the graph describes, and the functions it
-    /// lists.
+    /// A symbol the graph lists at a place in the source, with its doc
+    /// comment.
+    struct Documented: Sendable, CustomStringConvertible {
+        var path: String
+        var line: Int
+        /// The name without parameters, such as `init` or `parse`.
+        var name: String
+        var kind: String
+        /// The doc comment's lines as the graph lists them, joined, with
+        /// whitespace-only lines at the start and the end dropped, or nil
+        /// when the graph has none.
+        var documentation: String?
+
+        var description: String {
+            "\(path):\(line) \(kind) \(name)"
+        }
+    }
+
+    /// The checkout whose sources the graph describes, the functions it
+    /// lists, and every symbol it lists with its doc comment.
     struct Graph: Sendable {
         var root: URL
         var functions: [Function]
+        var documented: [Documented]
     }
 
     /// The functions the symbol graph lists with a location in the source,
@@ -59,16 +79,52 @@ enum SymbolGraphOracle {
         ]
         _ = try run(["swift", "build", "--package-path", root.path] + compilerFlags.flatMap { ["-Xswiftc", $0] })
         let rootPath = root.standardizedFileURL.resolvingSymlinksInPath().path
-        let listed = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        let symbols = try FileManager.default.contentsOfDirectory(atPath: directory.path)
             .filter { $0.hasSuffix(".symbols.json") }
             .flatMap { name in
                 let data = try Data(contentsOf: directory.appendingPathComponent(name))
-                let file = try JSONDecoder().decode(GraphFile.self, from: data)
-                return file.symbols.compactMap { $0.function(under: rootPath) }
+                return try JSONDecoder().decode(GraphFile.self, from: data).symbols
             }
-        let functions = listed.sorted { ($0.path, $0.line, $0.title) < ($1.path, $1.line, $1.title) }
+        let functions = symbols.compactMap { $0.function(under: rootPath) }
+            .sorted { ($0.path, $0.line, $0.title) < ($1.path, $1.line, $1.title) }
+        // The initializers the compiler makes, implicit and memberwise, have
+        // no declaration: the graph lists them at their type's name.
+        let typeKinds: Set = ["swift.struct", "swift.class", "swift.enum", "swift.actor", "swift.protocol"]
+        let typePositions = Set(symbols.filter { typeKinds.contains($0.kind.identifier) }.compactMap(\.place))
+        let documented = symbols
+            .filter { !($0.kind.identifier == "swift.init" && $0.place.map(typePositions.contains) == true) }
+            .compactMap { $0.documented(under: rootPath) }
         // The copy's sources are the checkout's.
-        return Graph(root: checkout, functions: functions)
+        return Graph(root: checkout, functions: functions, documented: documented)
+    }
+
+    /// The doc comment the compiler reads for each symbol in `source`, by
+    /// name, from the symbol graph of a package of that one file, which
+    /// `swift build` builds, as it builds the corpus.
+    static func documentation(ofSymbolsIn source: String) throws -> [String: String?] {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("steward-lang-swift-doc-oracle-\(UUID().uuidString)", isDirectory: true)
+        let sources = root.appendingPathComponent("Sources/Shapes", isDirectory: true)
+        try FileManager.default.createDirectory(at: sources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = """
+            // swift-tools-version:5.9
+            import PackageDescription
+            let package = Package(name: "Shapes", targets: [.target(name: "Shapes")])
+            """
+        try Data(manifest.utf8).write(to: root.appendingPathComponent("Package.swift"))
+        try Data(source.utf8).write(to: sources.appendingPathComponent("Shapes.swift"))
+        let directory = root.appendingPathComponent(".symbol-graphs", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let compilerFlags = ["-emit-symbol-graph", "-emit-symbol-graph-dir", directory.path]
+        _ = try run(["swift", "build", "--package-path", root.path] + compilerFlags.flatMap { ["-Xswiftc", $0] })
+        let data = try Data(contentsOf: directory.appendingPathComponent("Shapes.symbols.json"))
+        let symbols = try JSONDecoder().decode(GraphFile.self, from: data).symbols
+        let rootPath = root.standardizedFileURL.resolvingSymlinksInPath().path
+        return Dictionary(
+            symbols.compactMap { $0.documented(under: rootPath) }.map { ($0.name, $0.documentation) },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     private static func run(_ arguments: [String]) throws -> String {
@@ -106,8 +162,9 @@ private struct GraphNames: Decodable {
     var title: String
 }
 
-private struct GraphPosition: Decodable {
+private struct GraphPosition: Decodable, Hashable {
     var line: Int
+    var character: Int?
 }
 
 private struct GraphLocation: Decodable {
@@ -120,13 +177,31 @@ private struct GraphFragment: Decodable {
     var spelling: String
 }
 
+private struct GraphDocLine: Decodable {
+    var text: String
+}
+
+private struct GraphDocComment: Decodable {
+    var lines: [GraphDocLine]
+
+    /// The lines, joined, without whitespace-only lines at the start and
+    /// the end, which the model drops.
+    var text: String {
+        let isBlank = { (line: GraphDocLine) in line.text.allSatisfy { $0 == " " || $0 == "\t" } }
+        let lastText = lines.lastIndex { !isBlank($0) } ?? -1
+        return lines.prefix(lastText + 1).drop(while: isBlank).map(\.text).joined(separator: "\n")
+    }
+}
+
 private struct GraphSymbol: Decodable {
     var kind: GraphKind
     var identifier: GraphIdentifier
     var names: GraphNames
+    var pathComponents: [String]?
     var accessLevel: String
     var location: GraphLocation?
     var declarationFragments: [GraphFragment]?
+    var docComment: GraphDocComment?
 
     static let functionKinds: Set = ["swift.func", "swift.method", "swift.type.method", "swift.func.op"]
 
@@ -150,6 +225,31 @@ private struct GraphSymbol: Decodable {
             isThrowing: keywords.contains("throws") || keywords.contains("rethrows"),
             isStatic: kind.identifier == "swift.type.method"
                 || keywords.contains("static") || keywords.contains("class")
+        )
+    }
+
+    /// Where the symbol is: its file and position.
+    var place: String? {
+        location.map { "\($0.uri):\($0.position.line):\($0.position.character ?? -1)" }
+    }
+
+    /// The symbol with its doc comment, if it's in a file under `root`
+    /// and the model reads it: top-level variables aren't members, so they
+    /// are left out, as are synthesized copies.
+    func documented(under root: String) -> SymbolGraphOracle.Documented? {
+        guard kind.identifier != "swift.var",
+              !identifier.precise.contains("::SYNTHESIZED::"),
+              let location,
+              let url = URL(string: location.uri)
+        else { return nil }
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        guard path.hasPrefix(root + "/") else { return nil }
+        return SymbolGraphOracle.Documented(
+            path: String(path.dropFirst(root.count + 1)),
+            line: location.position.line + 1,
+            name: String((pathComponents?.last ?? names.title).prefix { $0 != "(" }),
+            kind: kind.identifier,
+            documentation: docComment?.text
         )
     }
 

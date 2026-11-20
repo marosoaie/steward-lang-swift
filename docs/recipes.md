@@ -16,8 +16,8 @@ rule, which reads every Swift file a pull request changes.
 ## Value types only
 
 A class or an actor is an exception, which its doc comment explains. The
-rule reads the doc comment from the type's syntax node, and looks only in
-`Sources/`, since a test may need a class (`Bundle(for:)` takes one):
+rule reads the type's `documentation`, and looks only in `Sources/`,
+since a test may need a class (`Bundle(for:)` takes one):
 
 <!-- Recipe: value-types -->
 ```swift
@@ -27,14 +27,8 @@ static let valueTypes = Rule.swiftSource("Value types", in: "Sources/**/*.swift"
     file.types
         .filter { $0.kind == .class || $0.kind == .actor }
         .filter { type in
-            !type.syntax.leadingTrivia.contains { piece in
-                switch piece {
-                case .docLineComment(let text), .docBlockComment(let text):
-                    text.contains("A class") || text.contains("An actor")
-                default:
-                    false
-                }
-            }
+            let documentation = type.documentation ?? ""
+            return !documentation.contains("A class") && !documentation.contains("An actor")
         }
         .map { type in
             .warning(
@@ -53,7 +47,7 @@ is missed when only the extension's header changes, as is a requirement
 of a protocol that becomes public; `.changedTypes`
 would catch that, but would report every top-level public type whenever
 its file changed (the README's [worked rules](../README.md#worked-rules)
-weigh the same choice). The helper it uses comes with it:
+weigh the same choice):
 
 <!-- Recipe: documented-public-api -->
 ```swift
@@ -62,22 +56,12 @@ weigh the same choice). The helper it uses comes with it:
 /// missed when only the extension's header changes, as is a
 /// requirement of a protocol that becomes public.
 static let documentedPublicAPI = Rule.swiftSource("Documented public API", in: "Sources/**/*.swift") { file in
-    let types = file.types.filter { $0.access.level >= .public && !isDocumented($0.syntax) }
+    let types = file.types.filter { $0.access.level >= .public && $0.documentation == nil }
         .map { ($0.name, $0.location) }
-    let functions = file.functions.filter { $0.access.level >= .public && !isDocumented($0.syntax) }
+    let functions = file.functions.filter { $0.access.level >= .public && $0.documentation == nil }
         .map { ($0.name, $0.location) }
     return (types + functions).map { name, location in
         .warning("Public \(Markdown.codeSpan(name)) has no doc comment.", at: location)
-    }
-}
-
-/// Whether `declaration` has a doc comment in the trivia before it.
-static func isDocumented(_ declaration: some SyntaxProtocol) -> Bool {
-    declaration.leadingTrivia.contains { piece in
-        switch piece {
-        case .docLineComment, .docBlockComment: true
-        default: false
-        }
     }
 }
 ```

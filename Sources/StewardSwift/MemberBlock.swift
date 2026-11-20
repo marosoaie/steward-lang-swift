@@ -48,6 +48,10 @@ public struct MemberBlock: Sendable {
     /// `#if`: a type's, or an extension's.
     public var attributes: [Attribute]
 
+    /// The owner's doc comment's text, a type's or an extension's, read as
+    /// `FunctionDeclaration.documentation` is, or nil when there's none.
+    public var documentation: String?
+
     /// The members, in source order, with those in each branch of an `#if`
     /// marked as conditional.
     public var members: [Member]
@@ -97,6 +101,7 @@ extension MemberBlock {
         access = AccessLevel(of: parent, modifiers: group.modifiers)
         inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
         attributes = Attribute.all(in: group.attributes, path: path, lines: lines)
+        documentation = Documentation.text(of: parent, lines: lines)
         functions = Member.declarations(in: block)
             .compactMap { $0.declaration.as(FunctionDeclSyntax.self) }
             .map { FunctionDeclaration($0, path: path, lines: lines) }

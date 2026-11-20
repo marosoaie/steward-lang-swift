@@ -42,6 +42,26 @@ public struct FunctionDeclaration: Sendable {
     /// `#if` among them.
     public var attributes: [Attribute]
 
+    /// The doc comment's text without its markers, read as the compiler
+    /// reads it, or nil when there's none. It's the last run of `///` and
+    /// `/** */` comments before the declaration: a blank line or a plain
+    /// comment between it and the declaration doesn't detach it, but a
+    /// blank line between two doc comments starts a new run, and a comment
+    /// above an `#if` belongs to the `#if`. Line breaks stay; each line
+    /// loses the indentation of the first non-empty one, and a block
+    /// comment loses its ` * ` decoration when its `/**` ends a line and the
+    /// stars line up under it. Blank lines at the start and the end are
+    /// dropped, so an empty doc comment is `""`.
+    ///
+    /// Where the compiler, as of Swift 6.4, reads otherwise: a doc comment
+    /// after code on the line above is no declaration's, where the compiler
+    /// gives it to the next one; a block comment with CRLF line ends reads
+    /// as one with LF ends, where the compiler keeps its stars and adds an
+    /// empty line after each line; and in a decorated block comment, the
+    /// star of a `**/` closer is decoration too, where the compiler keeps a
+    /// ` *` line.
+    public var documentation: String?
+
     /// The line of the function's name, to report a finding at.
     public var location: Location
 
@@ -77,6 +97,7 @@ extension FunctionDeclaration {
         returnType = signature.returnType
         parameters = function.signature.parameterClause.parameters.map { Parameter($0, path: path, lines: lines) }
         attributes = Attribute.all(in: function.attributes, path: path, lines: lines)
+        documentation = Documentation.text(of: function, lines: lines)
         location = Location(path: path, line: lines.line(of: function.name))
         self.lines = lines.lines(of: function)
         self.signature = signature
