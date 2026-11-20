@@ -220,15 +220,15 @@ struct SwiftSourceReading: Sendable {
 struct ScopedFindings: Sendable {
     let path: String
     let scope: SwiftSourceScope
-    let changedLines: LineRangeSet
-    let linesAfterDeletions: LineRangeSet
+    let changedLineNumbers: LineRangeSet
+    let lineNumbersAfterDeletions: LineRangeSet
     let index: DeclarationIndex
     let lineCount: Int
 
     /// Whether the pull request changed any of `lines`: added or rewrote
     /// one, or deleted lines just before one.
     func changed(_ lines: ClosedRange<Int>) -> Bool {
-        changedLines.overlaps(lines) || linesAfterDeletions.overlaps(lines)
+        changedLineNumbers.overlaps(lines) || lineNumbersAfterDeletions.overlaps(lines)
     }
 
     /// The findings among `findings` the scope keeps, in their order,
@@ -283,8 +283,8 @@ extension ScopedFindings {
         self.init(
             path: changed.path,
             scope: scope,
-            changedLines: changed.changedLines,
-            linesAfterDeletions: changed.linesAfterDeletions,
+            changedLineNumbers: changed.changedLineNumbers,
+            lineNumbersAfterDeletions: changed.lineNumbersAfterDeletions,
             index: DeclarationIndex(file: file),
             lineCount: file.sourceLines.count
         )

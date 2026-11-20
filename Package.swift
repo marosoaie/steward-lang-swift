@@ -23,7 +23,7 @@ let package = Package(
         // package builds against. 0.3 has what `Rule.swiftSource` builds on:
         // `Rule.changedFiles`, a file's contents at the head, the changed
         // lines and the lines after deletions, and `Finding.skipped`.
-        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.3.0")),
+        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.4.0")),
         // A range of majors (AGENTS.md). SwiftPM picks the newest in it, and
         // a parser older than the code it reads skips that file, so the upper
         // bound moves soon after each swift-syntax major. CI also builds

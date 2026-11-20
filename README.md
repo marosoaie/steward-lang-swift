@@ -73,7 +73,7 @@ let package = Package(
     name: "Dangerfile",
     platforms: [.macOS(.v26)],
     dependencies: [
-        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.3.0")),
+        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.4.0")),
         .package(url: "https://github.com/marosoaie/steward-lang-swift.git", .upToNextMinor(from: "0.2.0")),
     ],
     targets: [
@@ -94,7 +94,7 @@ let package = Package(
 
 - **Both packages, one minor release each.** A Dangerfile resolves one
   Steward for both, and each release of this package builds against one
-  Steward minor release (0.3 for now). Moving to the next Steward minor
+  Steward minor release (0.4 for now). Moving to the next Steward minor
   release waits for a release of this package that takes it. Keep
   swift-steward in the manifest even though `StewardSwift` brings
   `Steward`: the tests need `StewardTesting`, and the requirement is where

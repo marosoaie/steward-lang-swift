@@ -30,7 +30,7 @@
 ///
 /// A unit counts as changed when the pull request adds or rewrites one of
 /// its lines, or deletes lines inside it or directly above its first line:
-/// `changedLines.overlaps(lines) || linesAfterDeletions.overlaps(lines)`.
+/// `changedLineNumbers.overlaps(lines) || lineNumbersAfterDeletions.overlaps(lines)`.
 /// Its lines, for this test only, run from the comment lines directly
 /// above it, with no blank line between, so that a pull request that edits
 /// only a doc comment changes what it documents; a model value's own

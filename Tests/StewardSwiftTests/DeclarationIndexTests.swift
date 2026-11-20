@@ -78,8 +78,8 @@ struct DeclarationIndexTests {
             let changed = ChangedFile(
                 path: file.path,
                 contents: Array(corpusFile.source.utf8),
-                changedLines: random(&generator),
-                linesAfterDeletions: random(&generator)
+                changedLineNumbers: random(&generator),
+                lineNumbersAfterDeletions: random(&generator)
             )
             let scoped = SwiftSourceScope.allCases.map { ScopedFindings(file: file, changed: changed, scope: $0) }
             (-1...(count + 1)).forEach { (line: Int) in
@@ -111,8 +111,8 @@ struct DeclarationIndexTests {
             ScopedFindings(
                 path: file.path,
                 scope: .changedDeclarations,
-                changedLines: LineRangeSet([changed...changed]),
-                linesAfterDeletions: LineRangeSet(),
+                changedLineNumbers: LineRangeSet([changed...changed]),
+                lineNumbersAfterDeletions: LineRangeSet(),
                 index: index,
                 lineCount: file.sourceLines.count
             ).keeps(.message("", at: Location(path: file.path, line: line)))
@@ -133,8 +133,8 @@ struct DeclarationIndexTests {
         let scoped = ScopedFindings(
             path: file.path,
             scope: .changedDeclarations,
-            changedLines: LineRangeSet([1...1]),
-            linesAfterDeletions: LineRangeSet(),
+            changedLineNumbers: LineRangeSet([1...1]),
+            lineNumbersAfterDeletions: LineRangeSet(),
             index: index,
             lineCount: file.sourceLines.count
         )
@@ -154,8 +154,8 @@ struct DeclarationIndexTests {
             changed: ChangedFile(
                 path: precomposed,
                 contents: [],
-                changedLines: LineRangeSet([1...1]),
-                linesAfterDeletions: LineRangeSet()
+                changedLineNumbers: LineRangeSet([1...1]),
+                lineNumbersAfterDeletions: LineRangeSet()
             ),
             scope: .changedDeclarations
         )
@@ -178,8 +178,8 @@ struct DeclarationIndexTests {
             let changed = ChangedFile(
                 path: file.path,
                 contents: Array(source.utf8),
-                changedLines: LineRangeSet((2...count + 1).filter { $0.isMultiple(of: 2) }.map { $0...$0 }),
-                linesAfterDeletions: LineRangeSet()
+                changedLineNumbers: LineRangeSet((2...count + 1).filter { $0.isMultiple(of: 2) }.map { $0...$0 }),
+                lineNumbersAfterDeletions: LineRangeSet()
             )
             return {
                 let scoped = ScopedFindings(file: file, changed: changed, scope: .changedDeclarations)
@@ -250,8 +250,8 @@ struct DeclarationIndexTests {
                     ScopedFindings(
                         path: file.path,
                         scope: .changedDeclarations,
-                        changedLines: LineRangeSet([changed]),
-                        linesAfterDeletions: LineRangeSet(),
+                        changedLineNumbers: LineRangeSet([changed]),
+                        lineNumbersAfterDeletions: LineRangeSet(),
                         index: index,
                         lineCount: file.sourceLines.count
                     ).keeps(finding)
@@ -274,8 +274,8 @@ extension DeclarationIndexTests {
         let scoped = ScopedFindings(
             path: file.path,
             scope: .changedDeclarations,
-            changedLines: LineRangeSet(),
-            linesAfterDeletions: LineRangeSet(),
+            changedLineNumbers: LineRangeSet(),
+            lineNumbersAfterDeletions: LineRangeSet(),
             index: DeclarationIndex(file: file),
             lineCount: file.sourceLines.count
         )

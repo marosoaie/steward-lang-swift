@@ -24,7 +24,7 @@ let package = Package(
         // the checkout's directory is called.
         .package(name: "steward-lang-swift", path: ".."),
         // The Steward the root requires, for StewardTesting.
-        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.3.0")),
+        .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.4.0")),
     ],
     targets: [
         .executableTarget(

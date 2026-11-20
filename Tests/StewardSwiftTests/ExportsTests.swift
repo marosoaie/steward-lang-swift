@@ -12,11 +12,11 @@ struct ExportsTests {
             file.functions.map { Finding.message($0.name, at: $0.location) }
         }
         let location: Steward.Location = try SwiftFile(source: "func a() {}\n", path: "A.swift").functions[0].location
-        let lines: LineRangeSet = LineRangeSet([1...2])
+        let lineNumbers: LineRangeSet = LineRangeSet([1...2])
         let node: SourceFileSyntax? = nil
         #expect(rule.name == "Functions")
         #expect(location.line == 1)
-        #expect(lines.overlaps(2...3))
+        #expect(lineNumbers.overlaps(2...3))
         #expect(node == nil)
     }
 }
