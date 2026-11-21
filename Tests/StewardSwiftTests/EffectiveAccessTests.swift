@@ -239,5 +239,22 @@ struct EffectiveAccessTests {
         }
         let (flatTime, deepTime) = (rounds.map(\.0).min() ?? .zero, rounds.map(\.1).min() ?? .zero)
         #expect(deepTime < flatTime * 2 + .milliseconds(100), "\(deepTime) under 95 #if, \(flatTime) under none")
+        // And the types, blocks and functions built as SwiftFile builds them,
+        // each reading its own level: the faster of three, each way.
+        let build = { (file: SwiftFile, nodes: [Syntax]) in
+            let (caps, lines) = (AccessCaps(tree: file.syntax, nodes: nodes), file.sourceLines)
+            let types = nodes.compactMap { $0.as(DeclSyntax.self) }
+                .compactMap { TypeDeclaration($0, path: file.path, lines: lines, caps: caps) }
+            let blocks = nodes.compactMap { $0.as(MemberBlockSyntax.self) }
+                .compactMap { MemberBlock($0, path: file.path, lines: lines, caps: caps) }
+            let functions = nodes.compactMap { $0.as(FunctionDeclSyntax.self) }
+                .map { FunctionDeclaration($0, path: file.path, lines: lines, caps: caps) }
+            return types.count + blocks.count + functions.count
+        }
+        let builds = (0..<3).map { _ in
+            (clock.measure { _ = build(flat, flatNodes) }, clock.measure { _ = build(deep, deepNodes) })
+        }
+        let (flatBuild, deepBuild) = (builds.map(\.0).min() ?? .zero, builds.map(\.1).min() ?? .zero)
+        #expect(deepBuild < flatBuild * 2 + .milliseconds(100), "\(deepBuild) under 95 #if, \(flatBuild) under none")
     }
 }
