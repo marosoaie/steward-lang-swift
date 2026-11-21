@@ -1,3 +1,4 @@
+import Foundation
 @testable import StewardSwift
 import Testing
 
@@ -50,11 +51,13 @@ struct RefusalTests {
 
     @Test(
         "a parse that runs out of time is refused, and no other starts until it ends",
-        .timeLimit(.minutes(2))
+        // Five minutes, as the slow suites beside it have: alone the test takes
+        // 6 s, and a slow runner's contention adds to that.
+        .timeLimit(.minutes(5))
     )
-    func timeOutAndRunaway() async throws {
-        // About a megabyte of ordinary code: a second or two to parse in a
-        // debug build, far more than a millisecond.
+    func timeOutAndRunaway() throws {
+        // About a megabyte of ordinary code: a few seconds to parse in a debug
+        // build, far more than a millisecond.
         let slow = String(repeating: "let value = first + second * third - fourth\n", count: 24_000)
         let gate = ParseGate()
         #expect(throws: Refusal.timedOut(limit: .milliseconds(1))) {
@@ -64,11 +67,14 @@ struct RefusalTests {
         #expect(throws: Refusal.earlierParseStillRunning) {
             try SwiftFile.read(source: "func f() {}", path: "Next.swift", timeLimit: .seconds(10), gate: gate)
         }
-        // The runaway ends on its own, and the gate opens again.
+        // The runaway ends on its own, and the gate opens again. The wait
+        // blocks its thread: a test that suspends resumes behind every case
+        // already queued, which other tests' parses can hold for as long as
+        // the run lasts, and the time limit counts that.
         let clock = ContinuousClock()
         let deadline = clock.now + .seconds(90)
         while !gate.isOpen, clock.now < deadline {
-            try await Task.sleep(for: .milliseconds(50))
+            Thread.sleep(forTimeInterval: 0.05)
         }
         #expect(gate.isOpen)
         let file = try SwiftFile.read(source: "func f() {}", path: "Next.swift", timeLimit: .seconds(10), gate: gate)
