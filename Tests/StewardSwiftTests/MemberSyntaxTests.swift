@@ -33,17 +33,25 @@ struct MemberSyntaxTests {
             struct S {
                 var a, b: Int
                 var c = 0
+                let (d, e) = (1, 2)
+                var `default` = 0
             }
             enum E {
                 case one, two
             }
             """).memberBlocks.flatMap(\.members)
-        #expect(members.map(\.name) == ["a", "b", "c", "one", "two"])
+        #expect(members.map(\.name) == ["a", "b", "c", "d", "e", "default", "one", "two"])
         let ids = members.map(\.syntax.id)
         #expect(ids[0] == ids[1] && ids[1] != ids[2] && ids[2] != ids[3])
-        #expect(ids[3] == ids[4])
+        #expect(ids[3] == ids[4] && ids[4] != ids[5] && ids[5] != ids[6])
+        #expect(ids[6] == ids[7])
         #expect(members[0].syntax.as(VariableDeclSyntax.self)?.bindings.count == 2)
-        #expect(members[3].syntax.as(EnumCaseDeclSyntax.self)?.elements.count == 2)
+        #expect(members[3].syntax.as(VariableDeclSyntax.self)?.bindings.count == 1)
+        #expect(members[6].syntax.as(EnumCaseDeclSyntax.self)?.elements.count == 2)
+        // A name has no backticks; its token's text keeps them.
+        let token = members[5].syntax.as(VariableDeclSyntax.self)?.bindings.first?.pattern
+            .as(IdentifierPatternSyntax.self)?.identifier
+        #expect(token?.identifier?.name == members[5].name && token?.text == "`default`")
     }
 
     @Test("a member's node leads up to the type or extension around it, through an #if")

@@ -89,8 +89,11 @@ public struct Member: Sendable {
     /// `VariableDeclSyntax`, and those of `case a, b` one
     /// `EnumCaseDeclSyntax`, so its `id` doesn't tell them apart. A name's
     /// own binding or case element is the one in the declaration's
-    /// `bindings` or `elements` that holds the name. It follows
-    /// swift-syntax's version, not this package's.
+    /// `bindings` or `elements` that holds the name, anywhere in its
+    /// pattern, so `let (c, d) = pair`'s two names share a binding too.
+    /// Match a token by its `identifier?.name`: `name` has no backticks,
+    /// and a token's `text` keeps them. It follows swift-syntax's version,
+    /// not this package's.
     public var syntax: DeclSyntax
 }
 
