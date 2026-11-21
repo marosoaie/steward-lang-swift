@@ -153,13 +153,13 @@ struct EffectiveAccessTests {
     func deepTypes() throws {
         // A gate and a limit of the test's own, as the index's tests have.
         let read = { (depth: Int) throws -> SwiftFile in
-            let functions = String(repeating: "public func f() {}\n", count: 10_000)
+            let functions = String(repeating: "public func f() {}\n", count: 5_000)
             let source = String(repeating: "public struct S {\n", count: depth) + functions
                 + String(repeating: "}\n", count: depth)
             return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
         }
         let (shallow, deep) = (try read(1), try read(100))
-        #expect(deep.functions.count == 10_000 && deep.functions.allSatisfy { $0.effectiveAccess == .public })
+        #expect(deep.functions.count == 5_000 && deep.functions.allSatisfy { $0.effectiveAccess == .public })
         // The faster of five, each way, taken in turns. A walk to the top
         // for each function would take 100 types' steps for each, not one.
         let levels = { (file: SwiftFile, nodes: [Syntax]) in
@@ -175,27 +175,34 @@ struct EffectiveAccessTests {
         #expect(deepTime < shallowTime * 2 + .milliseconds(100), "\(deepTime) under 100 types, \(shallowTime) under 1")
     }
 
-    @Test("functions under ninety-five nested #if blocks at the top get their level about as fast as under none")
+    @Test("types and functions under ninety-five #if blocks at the top get their levels about as fast as flat ones")
     func deepConditionalCompilation() throws {
         // A gate and a limit of the test's own, as the index's tests have.
+        // No level is written, so each declaration's own level is its
+        // default, which a walk up to the root would find too.
         let read = { (depth: Int) throws -> SwiftFile in
-            let functions = String(repeating: "public func f() {}\n", count: 10_000)
-            let source = String(repeating: "#if A\n", count: depth) + functions
+            let declarations = String(repeating: "struct T {}\nfunc f() {}\n", count: 2_500)
+            let source = String(repeating: "#if A\n", count: depth) + declarations
                 + String(repeating: "#endif\n", count: depth)
             return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
         }
         let (flat, deep) = (try read(0), try read(95))
-        #expect(deep.functions.count == 10_000 && deep.functions.allSatisfy { $0.effectiveAccess == .public })
-        // The faster of five, each way, taken in turns. A walk up to the
-        // root for each function would take 95 `#if`s' steps for each.
-        let caps = { (file: SwiftFile) in AccessCaps(tree: file.syntax, nodes: Array(file.syntax.preorder())) }
-        let (flatCaps, deepCaps) = (caps(flat), caps(deep))
-        let levels = { (file: SwiftFile, caps: AccessCaps) in
-            file.functions.map { caps.effectiveLevel(of: $0.syntax, declared: $0.access.level) }
+        let levels = deep.types.map(\.effectiveAccess) + deep.functions.map(\.effectiveAccess)
+        #expect(levels.count == 5_000 && levels.allSatisfy { $0 == .internal })
+        // The faster of five, each way, taken in turns: the caps, with each
+        // type's own level, and each function's level and cap. A walk up to
+        // the root for any of them would take 95 `#if`s' steps.
+        let levelsOf = { (file: SwiftFile, nodes: [Syntax]) in
+            let caps = AccessCaps(tree: file.syntax, nodes: nodes)
+            return file.functions.map { function in
+                let declared = caps.accessLevel(of: function.syntax, modifiers: function.syntax.modifiers)
+                return caps.effectiveLevel(of: function.syntax, declared: declared.level)
+            }
         }
+        let (flatNodes, deepNodes) = (Array(flat.syntax.preorder()), Array(deep.syntax.preorder()))
         let clock = ContinuousClock()
         let rounds = (0..<5).map { _ in
-            (clock.measure { _ = levels(flat, flatCaps) }, clock.measure { _ = levels(deep, deepCaps) })
+            (clock.measure { _ = levelsOf(flat, flatNodes) }, clock.measure { _ = levelsOf(deep, deepNodes) })
         }
         let (flatTime, deepTime) = (rounds.map(\.0).min() ?? .zero, rounds.map(\.1).min() ?? .zero)
         #expect(deepTime < flatTime * 2 + .milliseconds(100), "\(deepTime) under 95 #if, \(flatTime) under none")

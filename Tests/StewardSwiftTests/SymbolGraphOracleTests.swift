@@ -17,7 +17,11 @@ import Testing
 /// Only 9 of its 345 functions are `async`, and few are protocol
 /// requirements. None of its doc comments is a `/** */` block, so
 /// `DocumentationShape`'s shapes, compiled into a package of their own,
-/// hold those, and the other shapes of a doc comment.
+/// hold those, and the other shapes of a doc comment. Outside extensions,
+/// the types around a declaration lower its level only to `private` (25
+/// of the values compared, from `internal` or `fileprivate`), never a
+/// `public` one to `internal`: that case, the one steward-lang-swift#27
+/// starts from, is held by `EffectiveAccessTests` alone.
 @Suite("Symbol graph oracle", .enabled(if: SymbolGraphOracle.isEnabled), .timeLimit(.minutes(20)))
 struct SymbolGraphOracleTests {
     @Test("every function in the compiler's symbol graph is read alike")
@@ -136,7 +140,11 @@ struct SymbolGraphOracleTests {
         }
         let differences = read.flatMap(\.differences)
         let (compared, inExtensions) = (read.map(\.compared).reduce(0, +), read.map(\.inExtensions).reduce(0, +))
-        #expect(compared > 1_000 && inExtensions > 100, "compared \(compared), in extensions \(inExtensions)")
+        let lowered = read.map(\.lowered).reduce(0, +)
+        #expect(
+            compared > 1_000 && inExtensions > 100 && lowered > 0,
+            "compared \(compared), in extensions \(inExtensions), lowered by the types around them \(lowered)"
+        )
         #expect(
             differences.isEmpty,
             "\(differences.count) differences:\n\(differences.prefix(40).joined(separator: "\n"))"
@@ -145,20 +153,31 @@ struct SymbolGraphOracleTests {
 
     /// How the model's values at a symbol's line, with its name, read its
     /// effective level against the graph's: those in an extension, which
-    /// doesn't cap them, are counted and not compared.
+    /// doesn't cap them, are counted and not compared, and those compared
+    /// whose level the types around them lowered are counted.
     struct EffectiveRead {
         var compared = 0
         var inExtensions = 0
+        var lowered = 0
         var differences: [String] = []
+    }
+
+    /// A model value's node, its own level and its effective level.
+    struct Levels {
+        var syntax: Syntax
+        var declared: AccessLevel.Level
+        var effective: AccessLevel.Level
     }
 
     static func effectiveRead(_ expected: SymbolGraphOracle.Documented, in file: SwiftFile) -> EffectiveRead {
         let atLine = { (location: Location, name: String) in location.line == expected.line && name == expected.name }
-        let values: [(syntax: Syntax, level: AccessLevel.Level)] =
-            file.functions.filter { atLine($0.location, $0.name) }.map { (Syntax($0.syntax), $0.effectiveAccess) }
-            + file.types.filter { atLine($0.location, $0.name) }.map { (Syntax($0.syntax), $0.effectiveAccess) }
-            + (file.memberBlocks.flatMap(\.members) + file.topLevelMembers)
-                .filter { atLine($0.location, $0.name) }.map { (Syntax($0.syntax), $0.effectiveAccess) }
+        let values: [Levels] =
+            file.functions.filter { atLine($0.location, $0.name) }
+                .map { Levels(syntax: Syntax($0.syntax), declared: $0.access.level, effective: $0.effectiveAccess) }
+            + file.types.filter { atLine($0.location, $0.name) }
+                .map { Levels(syntax: Syntax($0.syntax), declared: $0.access.level, effective: $0.effectiveAccess) }
+            + (file.memberBlocks.flatMap(\.members) + file.topLevelMembers).filter { atLine($0.location, $0.name) }
+                .map { Levels(syntax: Syntax($0.syntax), declared: $0.access.level, effective: $0.effectiveAccess) }
         guard !values.isEmpty else {
             return EffectiveRead(differences: ["\(expected): not read"])
         }
@@ -166,12 +185,13 @@ struct SymbolGraphOracleTests {
             sequence(first: node, next: \.parent).contains { $0.is(ExtensionDeclSyntax.self) }
         }
         let compared = values.filter { !isInExtension($0.syntax) }
-        let differences = compared.filter { $0.level != expected.effectiveAccess }.map {
-            "\(expected): read \($0.level), compiler \(expected.effectiveAccess.map { "\($0)" } ?? "?")"
+        let differences = compared.filter { $0.effective != expected.effectiveAccess }.map {
+            "\(expected): read \($0.effective), compiler \(expected.effectiveAccess.map { "\($0)" } ?? "?")"
         }
         return EffectiveRead(
             compared: compared.count,
             inExtensions: values.count - compared.count,
+            lowered: compared.filter { $0.effective < $0.declared }.count,
             differences: differences
         )
     }

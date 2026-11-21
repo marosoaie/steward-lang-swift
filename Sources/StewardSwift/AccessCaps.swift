@@ -22,10 +22,18 @@ struct AccessCaps: Sendable {
         self.topLevelLists = topLevelLists
         typeLevels = nodes.reduce(into: [:]) { levels, node in
             guard Self.isType(node.kind), let group = node.asProtocol((any DeclGroupSyntax).self) else { return }
-            let declared = AccessLevel(of: node, modifiers: group.modifiers).level
+            let declared = Self.accessLevel(of: node, modifiers: group.modifiers, topLevelLists: topLevelLists).level
             let cap = Self.cap(around: node, typeLevels: levels, topLevelLists: topLevelLists)
             levels[node.id] = Swift.min(declared, cap)
         }
+    }
+
+    /// The access level of `declaration`, whose modifiers are `modifiers`,
+    /// as `AccessLevel(of:modifiers:)` reads it, but with no walk up to the
+    /// root for a level that isn't written out at the top of the file,
+    /// which is `internal`.
+    func accessLevel(of declaration: some SyntaxProtocol, modifiers: DeclModifierListSyntax) -> AccessLevel {
+        Self.accessLevel(of: declaration, modifiers: modifiers, topLevelLists: topLevelLists)
     }
 
     /// `declared`, the level of the declaration `node`, capped by what's
@@ -71,6 +79,19 @@ struct AccessCaps: Sendable {
         case .codeBlock, .closureExpr, .accessorBlock: .private
         default: nearest.flatMap { typeLevels[$0.id] } ?? .open
         }
+    }
+
+    private static func accessLevel(
+        of declaration: some SyntaxProtocol,
+        modifiers: DeclModifierListSyntax,
+        topLevelLists: Set<SyntaxIdentifier>
+    ) -> AccessLevel {
+        // A declaration's item list is its parent's parent.
+        if AccessLevel.Level(writtenIn: modifiers) == nil, let list = declaration.parent?.parent,
+           topLevelLists.contains(list.id) {
+            return AccessLevel(level: .internal, isExplicit: false)
+        }
+        return AccessLevel(of: declaration, modifiers: modifiers)
     }
 
     /// Whether a node of `kind` declares a struct, class, enum, actor or

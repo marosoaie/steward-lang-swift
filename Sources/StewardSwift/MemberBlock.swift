@@ -100,7 +100,7 @@ extension MemberBlock {
         } else {
             return nil
         }
-        access = AccessLevel(of: parent, modifiers: group.modifiers)
+        access = caps.accessLevel(of: parent, modifiers: group.modifiers)
         inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
         attributes = Attribute.all(in: group.attributes, path: path, lines: lines)
         documentation = Documentation.text(of: parent, lines: lines)

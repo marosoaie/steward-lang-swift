@@ -103,7 +103,7 @@ extension FunctionDeclaration {
     init(_ function: FunctionDeclSyntax, path: String, lines: SourceLines, caps: AccessCaps) {
         let signature = FunctionSignature(
             function,
-            access: AccessLevel(of: function, modifiers: function.modifiers),
+            access: caps.accessLevel(of: function, modifiers: function.modifiers),
             isStatic: function.modifiers.contains {
                 $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
             }

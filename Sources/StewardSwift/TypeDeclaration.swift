@@ -100,7 +100,7 @@ extension TypeDeclaration {
         else { return nil }
         self.kind = kind
         name = named.name.unescapedText
-        access = AccessLevel(of: declaration, modifiers: group.modifiers)
+        access = caps.accessLevel(of: declaration, modifiers: group.modifiers)
         effectiveAccess = caps.effectiveLevel(ofType: declaration, declared: access.level)
         isFinal = group.modifiers.contains { $0.name.tokenKind == .keyword(.final) }
         inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
