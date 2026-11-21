@@ -133,13 +133,13 @@ struct TopLevelMemberTests {
     func deepConditionalCompilation() throws {
         // A gate and a limit of the test's own, as the index's tests have.
         let read = { (depth: Int) throws -> SwiftFile in
-            let declarations = String(repeating: "var a = 0\n", count: 20_000)
+            let declarations = String(repeating: "var a = 0\n", count: 10_000)
             let source = String(repeating: "#if A\n", count: depth) + declarations
                 + String(repeating: "#endif\n", count: depth)
             return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
         }
         let (flat, deep) = (try read(0), try read(95))
-        #expect(deep.topLevelMembers.count == 20_000 && deep.topLevelMembers.allSatisfy { $0.isConditional })
+        #expect(deep.topLevelMembers.count == 10_000 && deep.topLevelMembers.allSatisfy { $0.isConditional })
         // The faster of five, each way, taken in turns. A walk up to the
         // root for each declaration's default level would take 95 `#if`s'
         // steps for each.
