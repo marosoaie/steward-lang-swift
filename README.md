@@ -147,15 +147,16 @@ jobs:
 `Rule.swiftSource` hands its check a `SwiftFile`: the file's `imports`,
 `types`, `memberBlocks` and `functions`, each at any depth (nested in
 types, local to functions), and its `topLevelMembers`, all in every
-branch of an `#if`. Each value has a `location` for a finding's `at:`. Functions, types, member blocks
-and members also have their `lineRange`, and the file, functions, types,
-member blocks and members their swift-syntax node, `syntax`, for what the
-model doesn't hold: `StewardSwift` re-exports SwiftSyntax, so its types
-need no import, and `file.location(of:)` gives such a node its location,
-as git counts lines. A raw node follows swift-syntax's version, not this
-package's: a new swift-syntax major can change it. A type's name in a
-signature or an inheritance clause is a `TypeName`, which matches a
-string by its spelling, and an access level an `AccessLevel`.
+branch of an `#if`. Each value has a `location` for a finding's `at:`.
+Functions, types, member blocks and members also have their `lineRange`,
+and the file, functions, types, member blocks and members their
+swift-syntax node, `syntax`, for what the model doesn't hold:
+`StewardSwift` re-exports SwiftSyntax, so its types need no import, and
+`file.location(of:)` gives such a node its location, as git counts
+lines. A raw node follows swift-syntax's version, not this package's: a
+new swift-syntax major can change it. A type's name in a signature or an
+inheritance clause is a `TypeName`, which matches a string by its
+spelling, and an access level an `AccessLevel`.
 
 Each block below is the body of a test in this repository, so what it
 expects holds.
