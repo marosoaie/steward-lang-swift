@@ -170,7 +170,7 @@ struct EffectiveAccessTests {
             }
             """)
         #expect(file.types.map { "\($0.name) \($0.access.level) \($0.effectiveAccess)" } == [
-            "InCase internal private", "Local public private", "InClosure private private",
+            "InCase private private", "Local public private", "InClosure private private",
             "InAccessor private private",
         ])
         #expect(file.functions.map { "\($0.name) \($0.effectiveAccess)" } == [
@@ -222,16 +222,21 @@ struct EffectiveAccessTests {
     func deepConditionalCompilation() throws {
         // A gate and a limit of the test's own, as the index's tests have.
         // No level is written, so each declaration's own level is its
-        // default, which a walk up to the root would find too.
+        // default, which a walk up to the root would find too, at the top
+        // and in a top-level `switch` case.
         let read = { (depth: Int) throws -> SwiftFile in
             let declarations = String(repeating: "struct T {}\nfunc f() {}\n", count: 2_500)
+                + "switch value {\ncase 1:\n" + String(repeating: "struct U {}\n", count: 1_500) + "default: break\n}\n"
             let source = String(repeating: "#if A\n", count: depth) + declarations
                 + String(repeating: "#endif\n", count: depth)
             return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
         }
         let (flat, deep) = (try read(0), try read(95))
-        let levels = deep.types.map(\.effectiveAccess) + deep.functions.map(\.effectiveAccess)
-        #expect(levels.count == 5_000 && levels.allSatisfy { $0 == .internal })
+        let topLevel = deep.types.filter { $0.name == "T" }.map(\.effectiveAccess)
+            + deep.functions.map(\.effectiveAccess)
+        let inCase = deep.types.filter { $0.name == "U" }.map(\.access.level)
+        #expect(topLevel.count == 5_000 && topLevel.allSatisfy { $0 == .internal })
+        #expect(inCase.count == 1_500 && inCase.allSatisfy { $0 == .private })
         // The faster of five, each way, taken in turns: the caps, with each
         // type's own level, and each function's level and cap. A walk up to
         // the root for any of them would take 95 `#if`s' steps.
