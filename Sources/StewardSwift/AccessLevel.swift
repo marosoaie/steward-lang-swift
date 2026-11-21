@@ -5,7 +5,8 @@ import SwiftSyntax
 /// A level that isn't written out is the one Swift gives the declaration
 /// where it stands, read from the source alone:
 ///
-/// - inside a function, closure or accessor body: `private`;
+/// - inside a function, closure or accessor body, or a `switch` case:
+///   `private`;
 /// - a protocol's requirement: the protocol's level, but at least
 ///   `fileprivate`;
 /// - in an extension with an access modifier: that level (`fileprivate`
@@ -134,10 +135,11 @@ extension AccessLevel.Level {
             ancestor.is(CodeBlockSyntax.self)
                 || ancestor.is(ClosureExprSyntax.self)
                 || ancestor.is(AccessorBlockSyntax.self)
+                || ancestor.is(SwitchCaseSyntax.self)
                 || ancestor.is(MemberBlockSyntax.self)
         }
         guard let context, let block = context.as(MemberBlockSyntax.self) else {
-            // At the top of the file, or local: a body or closure.
+            // At the top of the file, or local: a body, closure or case.
             self = context == nil ? .internal : .private
             return
         }

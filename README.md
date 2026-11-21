@@ -156,7 +156,8 @@ swift-syntax node, `syntax`, for what the model doesn't hold:
 lines. A raw node follows swift-syntax's version, not this package's: a
 new swift-syntax major can change it. A type's name in a signature or an
 inheritance clause is a `TypeName`, which matches a string by its
-spelling, and an access level an `AccessLevel`.
+spelling, and an access level an `AccessLevel`. Types, functions and
+members also have an `effectiveAccess`, capped by the types around them.
 
 Each block below is the body of a test in this repository, so what it
 expects holds.
@@ -208,6 +209,31 @@ let model = file.types[0]
 #expect(model.attributes.map(\.name) == ["MainActor"])
 #expect(file.types.map(\.name) == ["FeedModel", "State"])
 #expect(file.types[1].access.description == "internal (implicit)")
+```
+
+### Effective access
+
+A declaration's `effectiveAccess` is its level capped by the types
+around it in the file, or `private` in a function's body: what a rule
+about public API reads. An `open` class nested in a `public` type stays
+`open`, since a client can still subclass it. An extension doesn't cap
+what it holds, since the type it extends may be declared in another
+file:
+
+<!-- README: read-effective-access -->
+```swift
+let file = try SwiftFile(source: """
+    struct Cache {
+        public func clear() {}
+    }
+
+    extension Cache {
+        public func warm() {}
+    }
+    """, path: "Sources/Feed/Cache.swift")
+let (clear, warm) = (file.functions[0], file.functions[1])
+#expect(clear.access.level == .public && clear.effectiveAccess == .internal)
+#expect(warm.effectiveAccess == .public)
 ```
 
 ### Member blocks and members
