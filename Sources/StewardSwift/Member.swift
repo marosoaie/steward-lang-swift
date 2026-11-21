@@ -3,7 +3,11 @@ import SwiftSyntax
 
 /// A member of a type or an extension, as the source declares it: one for
 /// each name, so `var a, b: Int` and `case a, b` are two each.
-public struct Member: Sendable, Hashable {
+///
+/// The value isn't `Equatable` and has no memberwise initializer, as
+/// `TypeDeclaration` hasn't: it holds its declaration's node, and its
+/// properties come from it.
+public struct Member: Sendable {
     /// What a member declares.
     public enum Kind: String, Sendable, Hashable, CaseIterable, CustomStringConvertible {
         case function
@@ -80,34 +84,14 @@ public struct Member: Sendable, Hashable {
     /// without the comments before it.
     public var lineRange: ClosedRange<Int>
 
-    /// Creates a member, with no attributes, modifiers, doc comment or
-    /// property details unless `attributes`, `modifiers`, `documentation`
-    /// and `property` give them.
-    public init(
-        kind: Kind,
-        name: String,
-        access: AccessLevel,
-        isStatic: Bool,
-        isConditional: Bool,
-        attributes: [Attribute] = [],
-        modifiers: [String] = [],
-        documentation: String? = nil,
-        property: Property? = nil,
-        location: Location,
-        lineRange: ClosedRange<Int>
-    ) {
-        self.kind = kind
-        self.name = name
-        self.access = access
-        self.isStatic = isStatic
-        self.isConditional = isConditional
-        self.attributes = attributes
-        self.modifiers = modifiers
-        self.documentation = documentation
-        self.property = property
-        self.location = location
-        self.lineRange = lineRange
-    }
+    /// The declaration's syntax node, shared by the names it declares, as
+    /// its attributes are: the two members of `var a, b: Int` hold one
+    /// `VariableDeclSyntax`, and those of `case a, b` one
+    /// `EnumCaseDeclSyntax`, so its `id` doesn't tell them apart. A name's
+    /// own binding or case element is the one in the declaration's
+    /// `bindings` or `elements` that holds the name. It follows
+    /// swift-syntax's version, not this package's.
+    public var syntax: DeclSyntax
 }
 
 extension Member {
@@ -158,7 +142,8 @@ extension Member {
                 documentation: documentation,
                 property: declared.property,
                 location: Location(path: path, line: lines.line(of: declared.token)),
-                lineRange: lineRange
+                lineRange: lineRange,
+                syntax: declaration
             )
         }
     }

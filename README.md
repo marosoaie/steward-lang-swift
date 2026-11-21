@@ -148,11 +148,11 @@ jobs:
 `types`, `memberBlocks` and `functions`, each at any depth (nested in
 types, local to functions) and in every branch of an `#if`. Each value
 has a `location` for a finding's `at:`. Functions, types, member blocks
-and members also have their `lineRange`, and the file, functions, types
-and member blocks their swift-syntax node, `syntax`, for what the model
-doesn't hold: `StewardSwift` re-exports SwiftSyntax, so its types need no
-import, and `file.location(of:)` gives such a node its location, as git
-counts lines. A raw node follows swift-syntax's version, not this
+and members also have their `lineRange`, and the file, functions, types,
+member blocks and members their swift-syntax node, `syntax`, for what the
+model doesn't hold: `StewardSwift` re-exports SwiftSyntax, so its types
+need no import, and `file.location(of:)` gives such a node its location,
+as git counts lines. A raw node follows swift-syntax's version, not this
 package's: a new swift-syntax major can change it. A type's name in a
 signature or an inheritance clause is a `TypeName`, which matches a
 string by its spelling, and an access level an `AccessLevel`.
@@ -232,6 +232,7 @@ let (feed, extended) = (file.memberBlocks[0], file.memberBlocks[1])
 #expect(feed.members.map(\.kind) == [.property, .property, .initializer, .function])
 #expect(feed.members.map(\.name) == ["shared", "items", "init", "refresh"])
 #expect(feed.members.map(\.isStatic) == [true, false, false, false])
+#expect(feed.members[1].syntax.is(VariableDeclSyntax.self))
 #expect(extended.owner == .extension("Feed"))
 #expect(extended.inheritedTypes == ["Equatable"])
 #expect(extended.members.map(\.access.level) == [.private])
