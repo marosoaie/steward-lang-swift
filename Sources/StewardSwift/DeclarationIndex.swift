@@ -33,11 +33,7 @@ struct DeclarationIndex: Sendable {
         // The item lists at the top of the file, through any `#if`, found
         // once from the root, so that telling whether an item is at the top
         // costs the same however deep the `#if`s around it nest.
-        let topLevel = Set(file.syntax.preorder { node in
-            node.is(SourceFileSyntax.self) || node.is(CodeBlockItemListSyntax.self)
-                || node.is(CodeBlockItemSyntax.self) || node.is(IfConfigDeclSyntax.self)
-                || node.is(IfConfigClauseListSyntax.self) || node.is(IfConfigClauseSyntax.self)
-        }.filter { $0.is(CodeBlockItemListSyntax.self) }.map(\.id))
+        let topLevel = Set(file.syntax.topLevel.filter { $0.is(CodeBlockItemListSyntax.self) }.map(\.id))
         (units, owners) = Self.index(file.syntax, lines: file.sourceLines, topLevel: topLevel)
     }
 

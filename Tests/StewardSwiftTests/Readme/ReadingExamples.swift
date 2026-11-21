@@ -95,6 +95,25 @@ struct ReadingExamples {
         // README: end
     }
 
+    @Test("a file's top-level declarations are read as members")
+    func topLevelMembers() throws {
+        // README: read-top-level-members
+        let file = try SwiftFile(source: """
+            import Foundation
+
+            /// The feed's version.
+            public let version = "2.1"
+            public typealias Handler = (Feed) -> Void
+            func makeFeed() -> Feed { Feed() }
+            extension Feed {}
+            """, path: "Sources/Feed/Globals.swift")
+        let members = file.topLevelMembers
+        #expect(members.map(\.kind) == [.property, .typeAlias, .function])
+        #expect(members.map(\.name) == ["version", "Handler", "makeFeed"])
+        #expect(members.filter { $0.documentation == nil }.map(\.name) == ["Handler", "makeFeed"])
+        // README: end
+    }
+
     @Test("an import's module, attributes, access, kind, path and condition are read")
     func imports() throws {
         // README: read-imports

@@ -7,8 +7,9 @@ import Testing
 /// symbol graph lists, at minimum access level `private`, is read at the
 /// same line with the same name and argument labels, `async`, `throws`,
 /// access level and `static`; every function, type and member it lists,
-/// with the same doc comment; and every property, as a `let` or a `var`,
-/// stored or not where the graph shows it, with the type it writes.
+/// with the same doc comment; and every property and global variable, as
+/// a `let` or a `var`, stored or not where the graph shows it, with the
+/// type it writes.
 ///
 /// What the corpus doesn't exercise: the graph lists no local functions,
 /// and no function in it takes its access level from an extension's
@@ -48,7 +49,8 @@ struct SymbolGraphOracleTests {
         let differences = try byFile.keys.sorted().flatMap { path -> [String] in
             let data = try Data(contentsOf: graph.root.appendingPathComponent(path))
             let file = try SwiftFile(source: String(decoding: data, as: UTF8.self), path: path)
-            return (byFile[path] ?? []).compactMap { expected in Self.documentationDifference(expected, in: file) }
+            return (byFile[path] ?? []).filter { !Self.isBoundByStatement($0, in: file) }
+                .compactMap { expected in Self.documentationDifference(expected, in: file) }
         }
         #expect(
             differences.isEmpty,
@@ -75,26 +77,51 @@ struct SymbolGraphOracleTests {
         #expect(differences.isEmpty, "\(differences.joined(separator: "\n"))")
     }
 
-    @Test("every property in the compiler's symbol graph is a let or a var, stored or not, typed as written")
+    @Test("every property and global in the compiler's symbol graph is a let or a var, stored or not, typed as written")
     func propertiesMatchTheSymbolGraph() async throws {
         let graph = try await SymbolGraphOracle.graph.value
-        let properties = graph.documented.filter { $0.kind == "swift.property" || $0.kind == "swift.type.property" }
+        let kinds: Set = ["swift.property", "swift.type.property", "swift.var"]
+        let properties = graph.documented.filter { kinds.contains($0.kind) }
         #expect(properties.count > 600)
         let byFile = Dictionary(grouping: properties, by: \.path)
-        let differences = try byFile.keys.sorted().flatMap { path -> [String] in
+        let read = try byFile.keys.sorted().map { path -> (differences: [String], counts: (globals: Int, bound: Int)) in
             let data = try Data(contentsOf: graph.root.appendingPathComponent(path))
             let file = try SwiftFile(source: String(decoding: data, as: UTF8.self), path: path)
-            let members = file.memberBlocks.flatMap(\.members)
-            return (byFile[path] ?? []).compactMap { expected in
+            let members = file.memberBlocks.flatMap(\.members) + file.topLevelMembers
+            let expected = byFile[path] ?? []
+            let bound = expected.filter { Self.isBoundByStatement($0, in: file) }
+            let differences = expected.filter { !Self.isBoundByStatement($0, in: file) }.compactMap { expected in
                 let atLine = members.first { $0.location.line == expected.line && $0.name == expected.name }
                 guard let member = atLine, let property = member.property else { return "\(expected): not read" }
                 return Self.propertyDifference(property, of: member, expected)
             }
+            let globals = file.topLevelMembers.filter { member in
+                expected.contains { $0.line == member.location.line && $0.name == member.name }
+            }
+            return (differences, (globals.count, bound.count))
         }
+        let differences = read.flatMap(\.differences)
+        // The corpus's globals: six declared, and the two that
+        // Examples/roll/main.swift's `for` binds, which the graph lists too.
+        let (globals, bound) = (read.map(\.counts.globals).reduce(0, +), read.map(\.counts.bound).reduce(0, +))
+        #expect(globals == 6 && bound == 2, "\(globals) globals read, \(bound) bound by statements")
         #expect(
             differences.isEmpty,
             "\(differences.count) differences:\n\(differences.prefix(40).joined(separator: "\n"))"
         )
+    }
+
+    /// Whether `expected` is a variable that a statement at the top of the
+    /// file binds, such as a `for` loop's in a `main.swift`: the graph
+    /// lists it as a global, and the model, which reads declarations,
+    /// doesn't (the corpus has two, in Examples/roll/main.swift).
+    static func isBoundByStatement(_ expected: SymbolGraphOracle.Documented, in file: SwiftFile) -> Bool {
+        expected.kind == "swift.var" && file.syntax.statements.contains { item in
+            guard !item.item.is(DeclSyntax.self), let first = file.location(of: item).line,
+                  let last = item.lastToken(viewMode: .sourceAccurate).flatMap({ file.location(of: $0).line })
+            else { return false }
+            return (first...last).contains(expected.line)
+        }
     }
 
     /// What the model reads differently from the graph's declaration of a
@@ -132,12 +159,14 @@ struct SymbolGraphOracleTests {
 
     /// What the model reads differently from the graph for `expected`'s doc
     /// comment, or nil when every value at its line with its name reads it
-    /// alike: a function, a type, a member, and a type's member block.
+    /// alike: a function, a type, a member or top-level member, and a
+    /// type's member block.
     static func documentationDifference(_ expected: SymbolGraphOracle.Documented, in file: SwiftFile) -> String? {
         let atLine = { (location: Location, name: String) in location.line == expected.line && name == expected.name }
         let functions = file.functions.filter { atLine($0.location, $0.name) }.map(\.documentation)
         let types = file.types.filter { atLine($0.location, $0.name) }.map(\.documentation)
-        let members = file.memberBlocks.flatMap(\.members).filter { atLine($0.location, $0.name) }.map(\.documentation)
+        let members = (file.memberBlocks.flatMap(\.members) + file.topLevelMembers)
+            .filter { atLine($0.location, $0.name) }.map(\.documentation)
         let blocks = file.memberBlocks.filter { block in
             guard case .type(_, let name) = block.owner else { return false }
             return atLine(block.location, name)

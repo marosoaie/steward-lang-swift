@@ -58,7 +58,8 @@ struct MemberAttributeTests {
 
     @Test("every kind of member carries its attributes")
     func everyKindsAttributes() throws {
-        let members = try Sample.file("""
+        let file = try Sample.file("""
+            @Marked macro m() = #externalMacro(module: "M", type: "T")
             class C {
                 @Marked func function() {}
                 @Marked init() {}
@@ -75,7 +76,9 @@ struct MemberAttributeTests {
             protocol P {
                 @Marked associatedtype Associated
             }
-            """).memberBlocks.flatMap(\.members)
+            """)
+        // A macro is declared only at the top of a file.
+        let members = file.memberBlocks.flatMap(\.members) + file.topLevelMembers.filter { $0.kind == .macro }
         #expect(members.count == Member.Kind.allCases.count)
         #expect(Set(members.map(\.kind)) == Set(Member.Kind.allCases))
         #expect(members.allSatisfy { $0.attributes.map(\.name) == ["Marked"] })

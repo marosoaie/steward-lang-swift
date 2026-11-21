@@ -1,8 +1,9 @@
 import Steward
 import SwiftSyntax
 
-/// A member of a type or an extension, as the source declares it: one for
-/// each name, so `var a, b: Int` and `case a, b` are two each.
+/// A member of a type or an extension, or a declaration at the top of a
+/// file, as the source declares it: one for each name, so `var a, b: Int`
+/// and `case a, b` are two each.
 ///
 /// The value isn't `Equatable` and has no memberwise initializer, as
 /// `TypeDeclaration` hasn't: it holds its declaration's node, and its
@@ -24,6 +25,9 @@ public struct Member: Sendable {
         case associatedType
         /// A freestanding macro, such as `#warning(…)`.
         case macroExpansion
+        /// A `macro` declaration, which valid Swift has only at the top of a
+        /// file.
+        case macro
 
         /// The kind, as a finding names it, such as `typeAlias`.
         public var description: String {
@@ -46,8 +50,9 @@ public struct Member: Sendable {
     /// Whether the member is `static` or `class`.
     public var isStatic: Bool
 
-    /// Whether the member is inside an `#if` in its member block. Every
-    /// branch's members are read, in source order.
+    /// Whether the member is inside an `#if` in its member block, or, at
+    /// the top of a file, in the file. Every branch's members are read, in
+    /// source order.
     public var isConditional: Bool
 
     /// The attributes, in order, with those in each branch of an `#if`:
@@ -113,11 +118,12 @@ extension Member {
         }
     }
 
-    /// The members `declaration` declares, one for each name.
+    /// The members `declaration` declares, one for each name. `owner` is
+    /// the block it's in, or nil at the top of a file.
     static func all(
         in declaration: DeclSyntax,
         isConditional: Bool,
-        owner: MemberBlockSyntax,
+        owner: MemberBlockSyntax?,
         path: String,
         lines: SourceLines
     ) -> [Member] {
@@ -126,9 +132,15 @@ extension Member {
         let isStatic = modifierList.contains {
             $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
         }
-        let access = declaration.is(EnumCaseDeclSyntax.self) || declaration.is(DeinitializerDeclSyntax.self)
-            ? AccessLevel(implicitMemberOf: owner)
-            : AccessLevel(of: declaration, modifiers: modifierList)
+        let access = if declaration.is(EnumCaseDeclSyntax.self) || declaration.is(DeinitializerDeclSyntax.self) {
+            AccessLevel(implicitMemberOf: owner)
+        } else if owner == nil, AccessLevel.Level(writtenIn: modifierList) == nil {
+            // At the top of a file a level not written out is `internal`,
+            // with no walk up through the `#if`s around it to find that.
+            AccessLevel(level: .internal, isExplicit: false)
+        } else {
+            AccessLevel(of: declaration, modifiers: modifierList)
+        }
         let attributes = declaration.asProtocol((any WithAttributesSyntax).self)
             .map { Attribute.all(in: $0.attributes, path: path, lines: lines) } ?? []
         let documentation = Documentation.text(of: declaration, lines: lines)
@@ -170,6 +182,7 @@ extension Member {
         .protocolDecl: .type,
         .typeAliasDecl: .typeAlias,
         .associatedTypeDecl: .associatedType,
+        .macroDecl: .macro,
     ]
 
     /// Each name `declaration` declares.
