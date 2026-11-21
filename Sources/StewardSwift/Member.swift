@@ -47,6 +47,21 @@ public struct Member: Sendable {
     /// least `internal`, as Swift gives them.
     public var access: AccessLevel
 
+    /// The level the member is visible at: the lowest of `access` and the
+    /// effective levels of the types around it in the file, or `private`
+    /// inside a function or closure body. So a `public` member of an
+    /// `internal` struct is `internal`, a protocol's requirement and an
+    /// enum's case have their type's level, and an `open` member of a
+    /// `public` class is `public`, since the class can't be subclassed
+    /// outside its module. At the top of a file it's `access`'s level. An
+    /// extension doesn't cap what it holds, since the type it extends may
+    /// be declared in another file: a `public` member of an extension of an
+    /// `internal` type is `public` here, and its block's `owner` is
+    /// `.extension`. From `internal` up it's Swift's level but for that;
+    /// below, it can be lower: a member of a `private` type at the top of a
+    /// file is `fileprivate` to Swift.
+    public var effectiveAccess: AccessLevel.Level
+
     /// Whether the member is `static` or `class`.
     public var isStatic: Bool
 
@@ -118,15 +133,16 @@ extension Member {
         }
     }
 
-    /// The members `declaration` declares, one for each name. `owner` is
-    /// the block it's in, or nil at the top of a file.
+    /// The members that `item`'s declaration declares, one for each name.
+    /// `owner` is the block it's in, or nil at the top of a file.
     static func all(
-        in declaration: DeclSyntax,
-        isConditional: Bool,
+        in item: (declaration: DeclSyntax, isConditional: Bool),
         owner: MemberBlockSyntax?,
         path: String,
-        lines: SourceLines
+        lines: SourceLines,
+        caps: AccessCaps
     ) -> [Member] {
+        let (declaration, isConditional) = item
         let modifierList = declaration.asProtocol((any WithModifiersSyntax).self)?.modifiers ?? []
         let modifiers = modifierList.map(\.normalizedSpelling)
         let isStatic = modifierList.contains {
@@ -141,6 +157,8 @@ extension Member {
         } else {
             AccessLevel(of: declaration, modifiers: modifierList)
         }
+        // At the top of a file nothing caps it.
+        let effectiveAccess = owner.map { caps.effectiveLevel(in: $0, declared: access.level) } ?? access.level
         let attributes = declaration.asProtocol((any WithAttributesSyntax).self)
             .map { Attribute.all(in: $0.attributes, path: path, lines: lines) } ?? []
         let documentation = Documentation.text(of: declaration, lines: lines)
@@ -150,6 +168,7 @@ extension Member {
                 kind: declared.kind,
                 name: declared.name,
                 access: access,
+                effectiveAccess: effectiveAccess,
                 isStatic: isStatic,
                 isConditional: isConditional,
                 attributes: attributes,

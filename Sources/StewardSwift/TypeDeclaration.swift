@@ -32,6 +32,17 @@ public struct TypeDeclaration: Sendable {
     /// The access level, written out or not.
     public var access: AccessLevel
 
+    /// The level the type is visible at: the lowest of `access` and the
+    /// effective levels of the types around it in the file, or `private`
+    /// inside a function or closure body, so a `public` type nested in an
+    /// `internal` one is `internal`. An extension doesn't cap what it
+    /// holds, since the type it extends may be declared in another file: a
+    /// type nested in an extension is capped only by what's around the
+    /// extension. From `internal` up it's Swift's level but for that;
+    /// below, it can be lower: a type nested in a `private` one at the top
+    /// of a file is `fileprivate` to Swift.
+    public var effectiveAccess: AccessLevel.Level
+
     /// Whether the type is `final`. The other modifiers, such as
     /// `indirect`, are in `modifiers`.
     public var isFinal: Bool
@@ -74,7 +85,7 @@ public struct TypeDeclaration: Sendable {
 
 extension TypeDeclaration {
     /// The type `declaration` declares, or nil when it doesn't declare one.
-    init?(_ declaration: DeclSyntax, path: String, lines: SourceLines) {
+    init?(_ declaration: DeclSyntax, path: String, lines: SourceLines, caps: AccessCaps) {
         let kind: Kind
         switch declaration.as(DeclSyntaxEnum.self) {
         case .structDecl: kind = .struct
@@ -90,6 +101,7 @@ extension TypeDeclaration {
         self.kind = kind
         name = named.name.unescapedText
         access = AccessLevel(of: declaration, modifiers: group.modifiers)
+        effectiveAccess = caps.effectiveLevel(ofType: declaration, declared: access.level)
         isFinal = group.modifiers.contains { $0.name.tokenKind == .keyword(.final) }
         inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
         attributes = Attribute.all(in: group.attributes, path: path, lines: lines)
@@ -97,11 +109,11 @@ extension TypeDeclaration {
         documentation = Documentation.text(of: declaration, lines: lines)
         members = Member.declarations(in: group.memberBlock).flatMap { member in
             Member.all(
-                in: member.declaration,
-                isConditional: member.isConditional,
+                in: member,
                 owner: group.memberBlock,
                 path: path,
-                lines: lines
+                lines: lines,
+                caps: caps
             )
         }
         location = Location(path: path, line: lines.line(of: named.name))

@@ -36,7 +36,9 @@ public struct MemberBlock: Sendable {
 
     /// The owner's access level: for an extension, the one it writes out,
     /// or `internal`. A `private extension` is `private` here, while its
-    /// members default to `fileprivate`, as Swift gives them.
+    /// members default to `fileprivate`, as Swift gives them. A block has
+    /// no `effectiveAccess`: a type's is its `TypeDeclaration`'s, and each
+    /// member has its own.
     public var access: AccessLevel
 
     /// The owner's inherited types, as spelled: a type's, or the
@@ -75,11 +77,11 @@ public struct MemberBlock: Sendable {
 extension MemberBlock {
     /// The block of a type or an extension declaration, or nil for any
     /// other node.
-    init?(_ block: MemberBlockSyntax, path: String, lines: SourceLines) {
+    init?(_ block: MemberBlockSyntax, path: String, lines: SourceLines, caps: AccessCaps) {
         guard let parent = block.parent?.as(DeclSyntax.self),
               let group = parent.asProtocol((any DeclGroupSyntax).self)
         else { return nil }
-        if let type = TypeDeclaration(parent, path: path, lines: lines) {
+        if let type = TypeDeclaration(parent, path: path, lines: lines, caps: caps) {
             owner = .type(type.kind, name: type.name)
             location = type.location
             members = type.members
@@ -88,11 +90,11 @@ extension MemberBlock {
             location = Location(path: path, line: lines.line(of: extensionDecl.extendedType))
             members = Member.declarations(in: block).flatMap { member in
                 Member.all(
-                    in: member.declaration,
-                    isConditional: member.isConditional,
+                    in: member,
                     owner: block,
                     path: path,
-                    lines: lines
+                    lines: lines,
+                    caps: caps
                 )
             }
         } else {
@@ -104,7 +106,7 @@ extension MemberBlock {
         documentation = Documentation.text(of: parent, lines: lines)
         functions = Member.declarations(in: block)
             .compactMap { $0.declaration.as(FunctionDeclSyntax.self) }
-            .map { FunctionDeclaration($0, path: path, lines: lines) }
+            .map { FunctionDeclaration($0, path: path, lines: lines, caps: caps) }
         lineRange = lines.lineRange(of: parent)
         syntax = block
     }

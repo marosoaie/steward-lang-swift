@@ -144,8 +144,9 @@ struct TopLevelMemberTests {
         // root for each declaration's default level would take 95 `#if`s'
         // steps for each.
         let members = { (file: SwiftFile, declarations: [DeclSyntax]) in
-            declarations.flatMap { declaration in
-                Member.all(in: declaration, isConditional: true, owner: nil, path: file.path, lines: file.sourceLines)
+            let caps = AccessCaps(tree: file.syntax, nodes: [])
+            return declarations.flatMap { declaration in
+                Member.all(in: (declaration, true), owner: nil, path: file.path, lines: file.sourceLines, caps: caps)
             }
         }
         let declarations = { (file: SwiftFile) in

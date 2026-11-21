@@ -50,6 +50,11 @@ enum SymbolGraphOracle {
         var declaration: String
         /// The keywords in the declaration, such as `static` and `let`.
         var keywords: Set<String>
+        /// The lowest of the symbol's access level and its containers',
+        /// up the graph's `memberOf` and `requirementOf` relationships to
+        /// one the graph doesn't list, such as a type of another module's,
+        /// or nil when the graph gives the symbol no level the model knows.
+        var effectiveAccess: AccessLevel.Level?
 
         var description: String {
             "\(path):\(line) \(kind) \(name)"
@@ -84,12 +89,14 @@ enum SymbolGraphOracle {
         ]
         _ = try run(["swift", "build", "--package-path", root.path] + compilerFlags.flatMap { ["-Xswiftc", $0] })
         let rootPath = root.standardizedFileURL.resolvingSymlinksInPath().path
-        let symbols = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+        let files = try FileManager.default.contentsOfDirectory(atPath: directory.path)
             .filter { $0.hasSuffix(".symbols.json") }
-            .flatMap { name in
-                let data = try Data(contentsOf: directory.appendingPathComponent(name))
-                return try JSONDecoder().decode(GraphFile.self, from: data).symbols
+            .map { name in
+                try JSONDecoder().decode(GraphFile.self, from: Data(contentsOf: directory.appendingPathComponent(name)))
             }
+        let symbols = files.flatMap(\.symbols)
+        let relationships = files.flatMap { $0.relationships ?? [] }
+        let effectiveAccess = GraphFile.effectiveAccess(of: symbols, relationships: relationships)
         let functions = symbols.compactMap { $0.function(under: rootPath) }
             .sorted { ($0.path, $0.line, $0.title) < ($1.path, $1.line, $1.title) }
         // The initializers the compiler makes, implicit and memberwise, have
@@ -98,7 +105,7 @@ enum SymbolGraphOracle {
         let typePositions = Set(symbols.filter { typeKinds.contains($0.kind.identifier) }.compactMap(\.place))
         let documented = symbols
             .filter { !($0.kind.identifier == "swift.init" && $0.place.map(typePositions.contains) == true) }
-            .compactMap { $0.documented(under: rootPath) }
+            .compactMap { $0.documented(under: rootPath, effectiveAccess: effectiveAccess) }
         // The copy's sources are the checkout's.
         return Graph(root: checkout, functions: functions, documented: documented)
     }
@@ -127,7 +134,8 @@ enum SymbolGraphOracle {
         let symbols = try JSONDecoder().decode(GraphFile.self, from: data).symbols
         let rootPath = root.standardizedFileURL.resolvingSymlinksInPath().path
         return Dictionary(
-            symbols.compactMap { $0.documented(under: rootPath) }.map { ($0.name, $0.documentation) },
+            symbols.compactMap { $0.documented(under: rootPath, effectiveAccess: [:]) }
+                .map { ($0.name, $0.documentation) },
             uniquingKeysWith: { first, _ in first }
         )
     }
@@ -153,6 +161,40 @@ enum SymbolGraphOracle {
 
 private struct GraphFile: Decodable {
     var symbols: [GraphSymbol]
+    var relationships: [GraphRelationship]?
+
+    /// Each symbol's effective level, by its precise identifier: the
+    /// lowest of its level and its containers', up `memberOf`,
+    /// `requirementOf` and `optionalRequirementOf` to a container the graph
+    /// doesn't list.
+    static func effectiveAccess(
+        of symbols: [GraphSymbol],
+        relationships: [GraphRelationship]
+    ) -> [String: AccessLevel.Level] {
+        let containment: Set = ["memberOf", "requirementOf", "optionalRequirementOf"]
+        let container = Dictionary(
+            relationships.filter { containment.contains($0.kind) }.map { ($0.source, $0.target) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let level = Dictionary(
+            symbols.compactMap { symbol in
+                AccessLevel.Level.allCases.first { $0.description == symbol.accessLevel }
+                    .map { (symbol.identifier.precise, $0) }
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return Dictionary(uniqueKeysWithValues: level.map { id, own in
+            // Bounded, though the graph has no cycles.
+            let containers = sequence(first: id) { container[$0] }.dropFirst().prefix(64)
+            return (id, containers.compactMap { level[$0] }.reduce(own) { Swift.min($0, $1) })
+        })
+    }
+}
+
+private struct GraphRelationship: Decodable {
+    var kind: String
+    var source: String
+    var target: String
 }
 
 private struct GraphKind: Decodable {
@@ -243,7 +285,10 @@ private struct GraphSymbol: Decodable {
 
     /// The symbol with its doc comment, if it's in a file under `root`:
     /// synthesized copies are left out.
-    func documented(under root: String) -> SymbolGraphOracle.Documented? {
+    func documented(
+        under root: String,
+        effectiveAccess: [String: AccessLevel.Level]
+    ) -> SymbolGraphOracle.Documented? {
         guard !identifier.precise.contains("::SYNTHESIZED::"),
               let location,
               let url = URL(string: location.uri)
@@ -257,7 +302,8 @@ private struct GraphSymbol: Decodable {
             kind: kind.identifier,
             documentation: docComment?.text,
             declaration: (declarationFragments ?? []).map(\.spelling).joined(),
-            keywords: Set((declarationFragments ?? []).filter { $0.kind == "keyword" }.map(\.spelling))
+            keywords: Set((declarationFragments ?? []).filter { $0.kind == "keyword" }.map(\.spelling)),
+            effectiveAccess: effectiveAccess[identifier.precise]
         )
     }
 

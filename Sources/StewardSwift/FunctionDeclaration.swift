@@ -22,6 +22,19 @@ public struct FunctionDeclaration: Sendable {
     /// The access level, written out or not.
     public var access: AccessLevel
 
+    /// The level the function is visible at: the lowest of `access` and
+    /// the effective levels of the types around it in the file, or
+    /// `private` inside a function or closure body. So a `public` method of
+    /// an `internal` struct is `internal`, a protocol's requirement has its
+    /// protocol's level, and an `open` method of a `public` class is
+    /// `public`, since the class can't be subclassed outside its module. An
+    /// extension doesn't cap what it holds, since the type it extends may
+    /// be declared in another file: a `public` method of an extension of an
+    /// `internal` type is `public` here. From `internal` up it's Swift's
+    /// level but for that; below, it can be lower: a method of a `private`
+    /// type at the top of a file is `fileprivate` to Swift.
+    public var effectiveAccess: AccessLevel.Level
+
     /// Whether the function is `async`.
     public var isAsync: Bool
 
@@ -87,7 +100,7 @@ public struct FunctionDeclaration: Sendable {
 }
 
 extension FunctionDeclaration {
-    init(_ function: FunctionDeclSyntax, path: String, lines: SourceLines) {
+    init(_ function: FunctionDeclSyntax, path: String, lines: SourceLines, caps: AccessCaps) {
         let signature = FunctionSignature(
             function,
             access: AccessLevel(of: function, modifiers: function.modifiers),
@@ -97,6 +110,7 @@ extension FunctionDeclaration {
         )
         name = signature.name
         access = signature.access
+        effectiveAccess = caps.effectiveLevel(of: function, declared: signature.access.level)
         isAsync = signature.isAsync
         isThrowing = signature.isThrowing
         isStatic = signature.isStatic
