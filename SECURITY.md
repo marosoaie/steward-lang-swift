@@ -102,10 +102,11 @@ hostile source it isn't bounded by itself. Measured with swift-syntax 604:
   each member's `attributes`, such as one looking for `@Published`, does
   names × attributes work on a declaration with thousands of each, and
   one that searches each member's `documentation`, names × the comment's
-  length. So does hashing the members, as `Set(members)` does, since a
-  member's hash takes in all of them. In a release build, such a check
-  takes ten seconds on a 128 KiB file of that shape and nine minutes on a
-  1 MiB one; a debug build, as a Dangerfile usually is, is slower.
+  length. So does hashing what the names share, as
+  `Set(members.map(\.attributes))` does, since each name's hash takes in
+  all of it. In a release build, such a check takes ten seconds on a
+  128 KiB file of that shape and nine minutes on a 1 MiB one; a debug
+  build, as a Dangerfile usually is, is slower.
 - **It can refuse honest source**, rarely: 513 comparisons with no `{`,
   `}`, `;` or assignment between them, or a run of regex literals holding
   an unescaped `[`. A refusal fails the rule, so please report one as an

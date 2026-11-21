@@ -69,6 +69,7 @@ struct ReadingExamples {
         #expect(feed.members.map(\.kind) == [.property, .property, .initializer, .function])
         #expect(feed.members.map(\.name) == ["shared", "items", "init", "refresh"])
         #expect(feed.members.map(\.isStatic) == [true, false, false, false])
+        #expect(feed.members[1].syntax.is(VariableDeclSyntax.self))
         #expect(extended.owner == .extension("Feed"))
         #expect(extended.inheritedTypes == ["Equatable"])
         #expect(extended.members.map(\.access.level) == [.private])
