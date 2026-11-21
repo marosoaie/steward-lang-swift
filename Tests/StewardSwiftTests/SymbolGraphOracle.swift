@@ -166,7 +166,9 @@ private struct GraphFile: Decodable {
     /// Each symbol's effective level, by its precise identifier: the
     /// lowest of its level and its containers', up `memberOf`,
     /// `requirementOf` and `optionalRequirementOf` to a container the graph
-    /// doesn't list.
+    /// doesn't list, but for an `open` class in a `public` type, which
+    /// stays `open`, as another module can subclass it (checked with the
+    /// compiler).
     static func effectiveAccess(
         of symbols: [GraphSymbol],
         relationships: [GraphRelationship]
@@ -183,10 +185,16 @@ private struct GraphFile: Decodable {
             },
             uniquingKeysWith: { first, _ in first }
         )
-        return Dictionary(uniqueKeysWithValues: level.map { id, own in
-            // Bounded, though the graph has no cycles.
-            let containers = sequence(first: id) { container[$0] }.dropFirst().prefix(64)
-            return (id, containers.compactMap { level[$0] }.reduce(own) { Swift.min($0, $1) })
+        let classes = Set(symbols.filter { $0.kind.identifier == "swift.class" }.map(\.identifier.precise))
+        return Dictionary(uniqueKeysWithValues: level.keys.map { id in
+            // Bounded, though the graph has no cycles; from the outermost
+            // container in.
+            let chain = sequence(first: id) { container[$0] }.prefix(64).filter { level[$0] != nil }
+            let effective = chain.reversed().reduce(AccessLevel.Level.open) { cap, symbol in
+                let own = level[symbol] ?? .open
+                return own == .open && cap == .public && classes.contains(symbol) ? .open : Swift.min(own, cap)
+            }
+            return (id, effective)
         })
     }
 }

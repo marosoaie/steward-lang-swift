@@ -54,6 +54,39 @@ struct EffectiveAccessTests {
         ])
     }
 
+    @Test("an open class nested in a public type stays open, since another module can subclass it")
+    func nestedOpenClass() throws {
+        // Checked with the compiler: another module can subclass
+        // `Namespace.Base` and `Outer.Inner` and override their methods, but
+        // can't subclass `Outer` itself, nor `OpenOuter.Sealed`.
+        let file = try Sample.file("""
+            public struct Namespace {
+                open class Base { open func f() {} }
+            }
+            public class Outer {
+                open class Inner { open func g() {} }
+                open func h() {}
+            }
+            open class OpenOuter {
+                public class Sealed { open func k() {} }
+            }
+            package struct Kit {
+                open class Hidden {}
+            }
+            """)
+        #expect(file.types.map { "\($0.name) \($0.effectiveAccess)" } == [
+            "Namespace public", "Base open", "Outer public", "Inner open", "OpenOuter open", "Sealed public",
+            "Kit package", "Hidden package",
+        ])
+        #expect(file.functions.map { "\($0.name) \($0.effectiveAccess)" } == [
+            "f open", "g open", "h public", "k public",
+        ])
+        let nested = file.memberBlocks.flatMap(\.members).filter { $0.kind == .type }
+        #expect(nested.map { "\($0.name) \($0.effectiveAccess)" } == [
+            "Base open", "Inner open", "Sealed public", "Hidden package",
+        ])
+    }
+
     @Test("a protocol's requirements and an enum's cases have their type's level")
     func requirementsAndCases() throws {
         let file = try Sample.file("""

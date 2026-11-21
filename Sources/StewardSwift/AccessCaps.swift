@@ -5,7 +5,10 @@ import SwiftSyntax
 /// around it, at that type's own effective level, or a function, closure or
 /// accessor body, at `private`, whichever comes first going up. An
 /// extension doesn't cap what it holds, since the type it extends may be
-/// declared in another file, and the top of a file caps nothing.
+/// declared in another file, and the top of a file caps nothing. A
+/// `public` type caps what's inside it at `public`, but an `open` class
+/// nested in one stays `open`: being nested limits where the class is
+/// seen, not whether a client can subclass it.
 struct AccessCaps: Sendable {
     /// Each type declaration's effective level, by its node.
     private let typeLevels: [SyntaxIdentifier: AccessLevel.Level]
@@ -24,7 +27,7 @@ struct AccessCaps: Sendable {
             guard Self.isType(node.kind), let group = node.asProtocol((any DeclGroupSyntax).self) else { return }
             let declared = Self.accessLevel(of: node, modifiers: group.modifiers, topLevelLists: topLevelLists).level
             let cap = Self.cap(around: node, typeLevels: levels, topLevelLists: topLevelLists)
-            levels[node.id] = Swift.min(declared, cap)
+            levels[node.id] = declared == .open && cap == .public ? .open : Swift.min(declared, cap)
         }
     }
 
@@ -52,10 +55,10 @@ struct AccessCaps: Sendable {
         return Swift.min(declared, cap)
     }
 
-    /// The effective level of `declaration`, one of the tree's type
-    /// declarations, whose own level is `declared`.
-    func effectiveLevel(ofType declaration: some SyntaxProtocol, declared: AccessLevel.Level) -> AccessLevel.Level {
-        typeLevels[declaration.id] ?? effectiveLevel(of: declaration, declared: declared)
+    /// The effective level of `declaration` if it declares a struct,
+    /// class, enum, actor or protocol, or nil.
+    func typeLevel(of declaration: some SyntaxProtocol) -> AccessLevel.Level? {
+        typeLevels[declaration.id]
     }
 
     /// The cap of the nearest type or body around `node`, or `open` when

@@ -35,7 +35,9 @@ public struct TypeDeclaration: Sendable {
     /// The level the type is visible at: the lowest of `access` and the
     /// effective levels of the types around it in the file, or `private`
     /// inside a function or closure body, so a `public` type nested in an
-    /// `internal` one is `internal`. An extension doesn't cap what it
+    /// `internal` one is `internal`. An `open` class nested in a `public`
+    /// type stays `open`, though: being nested limits where it's seen, not
+    /// whether a client can subclass it. An extension doesn't cap what it
     /// holds, since the type it extends may be declared in another file: a
     /// type nested in an extension is capped only by what's around the
     /// extension. From `internal` up it's Swift's level but for that;
@@ -101,7 +103,8 @@ extension TypeDeclaration {
         self.kind = kind
         name = named.name.unescapedText
         access = caps.accessLevel(of: declaration, modifiers: group.modifiers)
-        effectiveAccess = caps.effectiveLevel(ofType: declaration, declared: access.level)
+        effectiveAccess = caps.typeLevel(of: declaration)
+            ?? caps.effectiveLevel(of: declaration, declared: access.level)
         isFinal = group.modifiers.contains { $0.name.tokenKind == .keyword(.final) }
         inheritedTypes = group.inheritanceClause?.inheritedTypes.map { TypeName($0.type) } ?? []
         attributes = Attribute.all(in: group.attributes, path: path, lines: lines)
