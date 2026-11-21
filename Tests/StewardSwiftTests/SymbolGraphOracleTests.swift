@@ -84,16 +84,27 @@ struct SymbolGraphOracleTests {
         let properties = graph.documented.filter { kinds.contains($0.kind) }
         #expect(properties.count > 600)
         let byFile = Dictionary(grouping: properties, by: \.path)
-        let differences = try byFile.keys.sorted().flatMap { path -> [String] in
+        let read = try byFile.keys.sorted().map { path -> (differences: [String], counts: (globals: Int, bound: Int)) in
             let data = try Data(contentsOf: graph.root.appendingPathComponent(path))
             let file = try SwiftFile(source: String(decoding: data, as: UTF8.self), path: path)
             let members = file.memberBlocks.flatMap(\.members) + file.topLevelMembers
-            return (byFile[path] ?? []).filter { !Self.isBoundByStatement($0, in: file) }.compactMap { expected in
+            let expected = byFile[path] ?? []
+            let bound = expected.filter { Self.isBoundByStatement($0, in: file) }
+            let differences = expected.filter { !Self.isBoundByStatement($0, in: file) }.compactMap { expected in
                 let atLine = members.first { $0.location.line == expected.line && $0.name == expected.name }
                 guard let member = atLine, let property = member.property else { return "\(expected): not read" }
                 return Self.propertyDifference(property, of: member, expected)
             }
+            let globals = file.topLevelMembers.filter { member in
+                expected.contains { $0.line == member.location.line && $0.name == member.name }
+            }
+            return (differences, (globals.count, bound.count))
         }
+        let differences = read.flatMap(\.differences)
+        // The corpus's globals: six declared, and the two that
+        // Examples/roll/main.swift's `for` binds, which the graph lists too.
+        let (globals, bound) = (read.map(\.counts.globals).reduce(0, +), read.map(\.counts.bound).reduce(0, +))
+        #expect(globals == 6 && bound == 2, "\(globals) globals read, \(bound) bound by statements")
         #expect(
             differences.isEmpty,
             "\(differences.count) differences:\n\(differences.prefix(40).joined(separator: "\n"))"

@@ -42,8 +42,9 @@ public struct SwiftFile: Sendable {
     /// are: functions, types, properties, type aliases, macros and macro
     /// expansions. Extensions, imports, and operator and precedence group
     /// declarations aren't members; `memberBlocks` and `imports` have the
-    /// first two. Nor is a freestanding macro with no attribute, such as
-    /// `#Preview { … }`: at the top of a file it's an expression.
+    /// first two. Nor is a freestanding macro with no attribute or
+    /// modifier, such as `#Preview { … }`: at the top of a file it's an
+    /// expression, a `MacroExpansionExprSyntax` in `syntax`.
     public var topLevelMembers: [Member]
 
     /// Every `func` declaration, in source order, at any depth: in types,

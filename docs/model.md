@@ -23,7 +23,7 @@ for one it can't read safely ([SECURITY.md](../SECURITY.md)).
 | `imports` | The `import` declarations, in source order. |
 | `types` | Every struct, class, enum, actor and protocol, in source order, at any depth, in every branch of an `#if`. |
 | `memberBlocks` | Every type's and extension's members, block by block, in source order, at any depth. |
-| `topLevelMembers` | The declarations at the top of the file, as `Member`s, one for each name, in source order, in every branch of an `#if`: functions, types, properties, type aliases and macros. Not extensions, imports or operators, nor a freestanding macro with no attribute, which is an expression there. |
+| `topLevelMembers` | The declarations at the top of the file, as `Member`s, one for each name, in source order, in every branch of an `#if`: functions, types, properties, type aliases and macros. Not extensions, imports or operators, nor a freestanding macro with no attribute or modifier, which is an expression there. |
 | `functions` | Every `func`, in source order, at any depth: in types, extensions and protocols, in other functions and closures, in every branch of an `#if`. |
 | `syntax` | The file's `SourceFileSyntax`. |
 

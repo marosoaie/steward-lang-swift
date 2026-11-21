@@ -1,4 +1,4 @@
-import StewardSwift
+@testable import StewardSwift
 import Testing
 
 @Suite("Top-level members")
@@ -115,5 +115,51 @@ struct TopLevelMemberTests {
             let closure = { let inside = 2 }
             """).topLevelMembers
         #expect(members.map(\.name) == ["S", "f", "closure"])
+    }
+
+    @Test("a freestanding macro at the top of a file is a member only with an attribute or a modifier")
+    func freestandingMacros() throws {
+        let members = try Sample.file("""
+            #Preview { 1 }
+            @available(*, deprecated) #warning("a")
+            public #Preview { 2 }
+            """).topLevelMembers
+        #expect(members.map { "\($0.kind) \($0.name) \($0.access.level)" } == [
+            "macroExpansion warning internal", "macroExpansion Preview public",
+        ])
+    }
+
+    @Test("declarations under ninety-five nested #if blocks at the top are read about as fast as under none")
+    func deepConditionalCompilation() throws {
+        // A gate and a limit of the test's own, as the index's tests have.
+        let read = { (depth: Int) throws -> SwiftFile in
+            let declarations = String(repeating: "var a = 0\n", count: 20_000)
+            let source = String(repeating: "#if A\n", count: depth) + declarations
+                + String(repeating: "#endif\n", count: depth)
+            return try SwiftFile.read(source: source, path: Sample.path, timeLimit: .seconds(300), gate: ParseGate())
+        }
+        let (flat, deep) = (try read(0), try read(95))
+        #expect(deep.topLevelMembers.count == 20_000 && deep.topLevelMembers.allSatisfy { $0.isConditional })
+        // The faster of five, each way, taken in turns. A walk up to the
+        // root for each declaration's default level would take 95 `#if`s'
+        // steps for each.
+        let members = { (file: SwiftFile, declarations: [DeclSyntax]) in
+            declarations.flatMap { declaration in
+                Member.all(in: declaration, isConditional: true, owner: nil, path: file.path, lines: file.sourceLines)
+            }
+        }
+        let declarations = { (file: SwiftFile) in
+            file.syntax.topLevel.compactMap { $0.as(CodeBlockItemSyntax.self)?.item.as(DeclSyntax.self) }
+        }
+        let (flatDeclarations, deepDeclarations) = (declarations(flat), declarations(deep))
+        let clock = ContinuousClock()
+        let rounds = (0..<5).map { _ in
+            (
+                clock.measure { _ = members(flat, flatDeclarations) },
+                clock.measure { _ = members(deep, deepDeclarations) }
+            )
+        }
+        let (flatTime, deepTime) = (rounds.map(\.0).min() ?? .zero, rounds.map(\.1).min() ?? .zero)
+        #expect(deepTime < flatTime * 2 + .milliseconds(100), "\(deepTime) under 95 #if, \(flatTime) under none")
     }
 }

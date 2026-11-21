@@ -25,7 +25,8 @@ public struct Member: Sendable {
         case associatedType
         /// A freestanding macro, such as `#warning(…)`.
         case macroExpansion
-        /// A `macro` declaration, at the top of a file.
+        /// A `macro` declaration, which valid Swift has only at the top of a
+        /// file.
         case macro
 
         /// The kind, as a finding names it, such as `typeAlias`.
@@ -131,9 +132,15 @@ extension Member {
         let isStatic = modifierList.contains {
             $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
         }
-        let access = declaration.is(EnumCaseDeclSyntax.self) || declaration.is(DeinitializerDeclSyntax.self)
-            ? AccessLevel(implicitMemberOf: owner)
-            : AccessLevel(of: declaration, modifiers: modifierList)
+        let access = if declaration.is(EnumCaseDeclSyntax.self) || declaration.is(DeinitializerDeclSyntax.self) {
+            AccessLevel(implicitMemberOf: owner)
+        } else if owner == nil, AccessLevel.Level(writtenIn: modifierList) == nil {
+            // At the top of a file a level not written out is `internal`,
+            // with no walk up through the `#if`s around it to find that.
+            AccessLevel(level: .internal, isExplicit: false)
+        } else {
+            AccessLevel(of: declaration, modifiers: modifierList)
+        }
         let attributes = declaration.asProtocol((any WithAttributesSyntax).self)
             .map { Attribute.all(in: $0.attributes, path: path, lines: lines) } ?? []
         let documentation = Documentation.text(of: declaration, lines: lines)
