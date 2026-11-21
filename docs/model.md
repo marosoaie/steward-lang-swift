@@ -43,7 +43,7 @@ A `func`. Initializers, subscripts and accessors aren't functions here;
 |---|---|
 | `name` | The name without its parameters, such as `load`, or an operator. |
 | `access` | Its `AccessLevel`, written out or not. |
-| `effectiveAccess` | Its `AccessLevel.Level` capped by the types around it in the file, or `private` in a body: what callers outside see. An extension doesn't cap what it holds. |
+| `effectiveAccess` | Its `AccessLevel.Level` capped by the types around it in the file, or `private` in a body: what callers outside see. An extension doesn't cap what it holds. A method of an `open` class nested in a `public` type takes the class's `open`. |
 | `isAsync` | Whether it's `async`. |
 | `isThrowing` | Whether it throws: `throws`, `throws(E)` or `rethrows`. |
 | `isStatic` | Whether it's `static` or `class`. |
@@ -105,7 +105,7 @@ A struct, class, enum, actor or protocol (`kind`, a `TypeDeclaration.Kind`).
 | `kind` | `.struct`, `.class`, `.enum`, `.actor` or `.protocol`. |
 | `name` | The name. |
 | `access` | Its `AccessLevel`. |
-| `effectiveAccess` | Its `AccessLevel.Level` capped by the types around it in the file, or `private` in a body: what callers outside see. An extension doesn't cap what it holds. |
+| `effectiveAccess` | Its `AccessLevel.Level` capped by the types around it in the file, or `private` in a body: what callers outside see. An extension doesn't cap what it holds. An `open` class nested in a `public` type stays `open`: a client can still subclass it. |
 | `isFinal` | Whether it's `final`. |
 | `inheritedTypes` | The `TypeName`s after the colon, in order: superclass, protocols, raw value type. |
 | `attributes` | Its `Attribute`s, in order. |
@@ -144,7 +144,7 @@ two.
 | `kind` | A `Member.Kind`: `.function`, `.initializer`, `.deinitializer`, `.subscript`, `.property`, `.case`, `.type`, `.typeAlias`, `.associatedType`, `.macroExpansion` or `.macro`. |
 | `name` | The name: `init`, `deinit` and `subscript` for those kinds. |
 | `access` | Its `AccessLevel`. |
-| `effectiveAccess` | Its `AccessLevel.Level` capped by the types around it in the file, or `private` in a body: what callers outside see. An extension doesn't cap what it holds. |
+| `effectiveAccess` | Its `AccessLevel.Level` capped by the types around it in the file, or `private` in a body: what callers outside see. An extension doesn't cap what it holds. An `open` class nested in a `public` type stays `open`: a client can still subclass it. |
 | `isStatic` | Whether it's `static` or `class`. |
 | `isConditional` | Whether it's inside an `#if` in its block, or in the file. |
 | `attributes` | Its declaration's `Attribute`s, in order, shared by every name it declares. |

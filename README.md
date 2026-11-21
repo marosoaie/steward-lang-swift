@@ -215,8 +215,10 @@ let model = file.types[0]
 
 A declaration's `effectiveAccess` is its level capped by the types
 around it in the file, or `private` in a function's body: what a rule
-about public API reads. An extension doesn't cap what it holds, since
-the type it extends may be declared in another file:
+about public API reads. An `open` class nested in a `public` type stays
+`open`, since a client can still subclass it. An extension doesn't cap
+what it holds, since the type it extends may be declared in another
+file:
 
 <!-- README: read-effective-access -->
 ```swift

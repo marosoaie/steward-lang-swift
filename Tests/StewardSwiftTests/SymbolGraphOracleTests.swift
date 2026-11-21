@@ -21,7 +21,10 @@ import Testing
 /// the types around a declaration lower its level only to `private` (25
 /// of the values compared, from `internal` or `fileprivate`), never a
 /// `public` one to `internal`: that case, the one steward-lang-swift#27
-/// starts from, is held by `EffectiveAccessTests` alone.
+/// starts from, is held by `EffectiveAccessTests` alone. Nor does it
+/// declare anything `open`, so the derivation's exception for an `open`
+/// class nested in a `public` type never runs; `nestedOpenClass` holds
+/// that, with cases checked with the compiler.
 @Suite("Symbol graph oracle", .enabled(if: SymbolGraphOracle.isEnabled), .timeLimit(.minutes(20)))
 struct SymbolGraphOracleTests {
     @Test("every function in the compiler's symbol graph is read alike")
