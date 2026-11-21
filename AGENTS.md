@@ -166,11 +166,13 @@ only, functional over imperative, the Swift API Design Guidelines with a
 doc comment on every public symbol, strict concurrency and memory safety
 with zero warnings, swift-testing with sentence-style names, and oracles
 over hand-computed expectations where one exists. Tests pass under both
-`swift test` and `xcodebuild test`. In a name, "lines" means lines of
-text: one span of line numbers is a `lineRange`, a set, list or per-file
-map of them is `…LineNumbers` (`changedLineNumbers`,
-`lineNumbersAfterDeletions`), and one number stays `line` or
-`lineNumber`.
+`swift test` and `xcodebuild test`. A `.timeLimit`'s clock starts before
+the body has a thread: it counts the wait to start and, on a test that
+suspends, each wait to resume, so a limit has to clear the whole run,
+whatever the body does. In a name, "lines" means lines of text: one span
+of line numbers is a `lineRange`, a set, list or per-file map of them is
+`…LineNumbers` (`changedLineNumbers`, `lineNumbersAfterDeletions`), and
+one number stays `line` or `lineNumber`.
 
 The source a rule reads is hostile input: a pull request's author writes
 it, and what a rule reports can end up in a public comment. Nothing here
