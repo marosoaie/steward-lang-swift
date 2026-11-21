@@ -3,12 +3,12 @@ import SwiftSyntax
 /// What the declarations around a node cap its access level at, for
 /// `effectiveAccess`: the nearest struct, class, enum, actor or protocol
 /// around it, at that type's own effective level, or a function, closure or
-/// accessor body, at `private`, whichever comes first going up. An
-/// extension doesn't cap what it holds, since the type it extends may be
-/// declared in another file, and the top of a file caps nothing. A
-/// `public` type caps what's inside it at `public`, but an `open` class
-/// nested in one stays `open`: being nested limits where the class is
-/// seen, not whether a client can subclass it.
+/// accessor body or a `switch` case, whose statements are local too, at
+/// `private`, whichever comes first going up. An extension doesn't cap what
+/// it holds, since the type it extends may be declared in another file, and
+/// the top of a file caps nothing. A `public` type caps what's inside it at
+/// `public`, but an `open` class nested in one stays `open`: being nested
+/// limits where the class is seen, not whether a client can subclass it.
 struct AccessCaps: Sendable {
     /// Each type declaration's effective level, by its node.
     private let typeLevels: [SyntaxIdentifier: AccessLevel.Level]
@@ -73,13 +73,13 @@ struct AccessCaps: Sendable {
         let nearest = node.ancestors.first { ancestor in
             switch ancestor.kind {
             case .codeBlockItemList: topLevelLists.contains(ancestor.id)
-            case .codeBlock, .closureExpr, .accessorBlock: true
+            case .codeBlock, .closureExpr, .accessorBlock, .switchCase: true
             default: isType(ancestor.kind)
             }
         }
         return switch nearest?.kind {
         case nil, .codeBlockItemList: .open
-        case .codeBlock, .closureExpr, .accessorBlock: .private
+        case .codeBlock, .closureExpr, .accessorBlock, .switchCase: .private
         default: nearest.flatMap { typeLevels[$0.id] } ?? .open
         }
     }

@@ -43,7 +43,7 @@ A `func`. Initializers, subscripts and accessors aren't functions here;
 |---|---|
 | `name` | The name without its parameters, such as `load`, or an operator. |
 | `access` | Its `AccessLevel`, written out or not. |
-| `effectiveAccess` | Its `AccessLevel.Level` capped by the types around it in the file, or `private` in a body: what callers outside see. An extension doesn't cap what it holds. A method of an `open` class nested in a `public` type takes the class's `open`. |
+| `effectiveAccess` | Its `AccessLevel.Level` capped by the types around it in the file, or `private` in a body: what callers outside see. An extension doesn't cap what it holds. An `open` method of an `open` class nested in a `public` type stays `open`. |
 | `isAsync` | Whether it's `async`. |
 | `isThrowing` | Whether it throws: `throws`, `throws(E)` or `rethrows`. |
 | `isStatic` | Whether it's `static` or `class`. |

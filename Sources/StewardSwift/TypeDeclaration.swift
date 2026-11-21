@@ -34,15 +34,15 @@ public struct TypeDeclaration: Sendable {
 
     /// The level the type is visible at: the lowest of `access` and the
     /// effective levels of the types around it in the file, or `private`
-    /// inside a function or closure body, so a `public` type nested in an
-    /// `internal` one is `internal`. An `open` class nested in a `public`
-    /// type stays `open`, though: being nested limits where it's seen, not
-    /// whether a client can subclass it. An extension doesn't cap what it
-    /// holds, since the type it extends may be declared in another file: a
-    /// type nested in an extension is capped only by what's around the
-    /// extension. From `internal` up it's Swift's level but for that;
-    /// below, it can be lower: a type nested in a `private` one at the top
-    /// of a file is `fileprivate` to Swift.
+    /// inside a function or closure body or a `switch` case, so a `public`
+    /// type nested in an `internal` one is `internal`. An `open` class
+    /// nested in a `public` type stays `open`, though: being nested limits
+    /// where it's seen, not whether a client can subclass it. An extension
+    /// doesn't cap what it holds, since the type it extends may be declared
+    /// in another file: a type nested in an extension is capped only by
+    /// what's around the extension. From `internal` up it's Swift's level
+    /// but for that; below, it can be lower: a type nested in a `private`
+    /// one at the top of a file is `fileprivate` to Swift.
     public var effectiveAccess: AccessLevel.Level
 
     /// Whether the type is `final`. The other modifiers, such as

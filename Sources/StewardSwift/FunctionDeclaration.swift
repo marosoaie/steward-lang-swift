@@ -22,17 +22,18 @@ public struct FunctionDeclaration: Sendable {
     /// The access level, written out or not.
     public var access: AccessLevel
 
-    /// The level the function is visible at: the lowest of `access` and
-    /// the effective levels of the types around it in the file, or
-    /// `private` inside a function or closure body. So a `public` method of
-    /// an `internal` struct is `internal`, a protocol's requirement has its
-    /// protocol's level, and an `open` method of a `public` class is
-    /// `public`, since the class can't be subclassed outside its module. An
-    /// extension doesn't cap what it holds, since the type it extends may
-    /// be declared in another file: a `public` method of an extension of an
-    /// `internal` type is `public` here. From `internal` up it's Swift's
-    /// level but for that; below, it can be lower: a method of a `private`
-    /// type at the top of a file is `fileprivate` to Swift.
+    /// The level the function is visible at: the lowest of `access` and the
+    /// effective levels of the types around it in the file, or `private`
+    /// inside a function or closure body or a `switch` case. So a `public`
+    /// method of an `internal` struct is `internal`, a protocol's
+    /// requirement has its protocol's level, and an `open` method of a
+    /// `public` class is `public`, since the class can't be subclassed
+    /// outside its module. An extension doesn't cap what it holds, since
+    /// the type it extends may be declared in another file: a `public`
+    /// method of an extension of an `internal` type is `public` here. From
+    /// `internal` up it's Swift's level but for that; below, it can be
+    /// lower: a method of a `private` type at the top of a file is
+    /// `fileprivate` to Swift.
     public var effectiveAccess: AccessLevel.Level
 
     /// Whether the function is `async`.

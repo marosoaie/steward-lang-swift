@@ -145,9 +145,18 @@ struct EffectiveAccessTests {
         #expect(file.functions.map { "\($0.name) \($0.effectiveAccess)" } == ["f public", "g public", "p fileprivate"])
     }
 
-    @Test("a function, closure or accessor body caps what's declared in it to private")
+    @Test("a function, closure or accessor body, or a switch case, caps what's declared in it to private")
     func bodiesCap() throws {
+        // A `switch` case's statements are local too, at the top of a
+        // `main.swift` among them, though no code block holds them.
         let file = try Sample.file("""
+            switch value {
+            case 1:
+                struct InCase {}
+                func inCase() {}
+            default:
+                break
+            }
             public func outer() {
                 public struct Local {
                     public func inner() {}
@@ -161,10 +170,11 @@ struct EffectiveAccessTests {
             }
             """)
         #expect(file.types.map { "\($0.name) \($0.access.level) \($0.effectiveAccess)" } == [
-            "Local public private", "InClosure private private", "InAccessor private private",
+            "InCase internal private", "Local public private", "InClosure private private",
+            "InAccessor private private",
         ])
         #expect(file.functions.map { "\($0.name) \($0.effectiveAccess)" } == [
-            "outer public", "inner private", "nested private",
+            "inCase private", "outer public", "inner private", "nested private",
         ])
     }
 

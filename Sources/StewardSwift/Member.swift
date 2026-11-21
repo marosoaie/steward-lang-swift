@@ -49,18 +49,18 @@ public struct Member: Sendable {
 
     /// The level the member is visible at: the lowest of `access` and the
     /// effective levels of the types around it in the file, or `private`
-    /// inside a function or closure body. So a `public` member of an
-    /// `internal` struct is `internal`, a protocol's requirement and an
-    /// enum's case have their type's level, and an `open` member of a
-    /// `public` class is `public`, since the class can't be subclassed
-    /// outside its module; but an `open` class nested in a `public` type
-    /// stays `open`, as a client can subclass it. At the top of a file it's
-    /// `access`'s level. An extension doesn't cap what it holds, since the
-    /// type it extends may be declared in another file: a `public` member
-    /// of an extension of an `internal` type is `public` here, and its
-    /// block's `owner` is `.extension`. From `internal` up it's Swift's
-    /// level but for that; below, it can be lower: a member of a `private`
-    /// type at the top of a file is `fileprivate` to Swift.
+    /// inside a function or closure body or a `switch` case. So a `public`
+    /// member of an `internal` struct is `internal`, a protocol's
+    /// requirement and an enum's case have their type's level, and an
+    /// `open` member of a `public` class is `public`, since the class can't
+    /// be subclassed outside its module; but an `open` class nested in a
+    /// `public` type stays `open`, as a client can subclass it. At the top
+    /// of a file it's `access`'s level. An extension doesn't cap what it
+    /// holds, since the type it extends may be declared in another file: a
+    /// `public` member of an extension of an `internal` type is `public`
+    /// here, and its block's `owner` is `.extension`. From `internal` up
+    /// it's Swift's level but for that; below, it can be lower: a member of
+    /// a `private` type at the top of a file is `fileprivate` to Swift.
     public var effectiveAccess: AccessLevel.Level
 
     /// Whether the member is `static` or `class`.
