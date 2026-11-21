@@ -1,8 +1,9 @@
 import Steward
 import SwiftSyntax
 
-/// A member of a type or an extension, as the source declares it: one for
-/// each name, so `var a, b: Int` and `case a, b` are two each.
+/// A member of a type or an extension, or a declaration at the top of a
+/// file, as the source declares it: one for each name, so `var a, b: Int`
+/// and `case a, b` are two each.
 ///
 /// The value isn't `Equatable` and has no memberwise initializer, as
 /// `TypeDeclaration` hasn't: it holds its declaration's node, and its
@@ -24,6 +25,8 @@ public struct Member: Sendable {
         case associatedType
         /// A freestanding macro, such as `#warning(…)`.
         case macroExpansion
+        /// A `macro` declaration, at the top of a file.
+        case macro
 
         /// The kind, as a finding names it, such as `typeAlias`.
         public var description: String {
@@ -46,8 +49,9 @@ public struct Member: Sendable {
     /// Whether the member is `static` or `class`.
     public var isStatic: Bool
 
-    /// Whether the member is inside an `#if` in its member block. Every
-    /// branch's members are read, in source order.
+    /// Whether the member is inside an `#if` in its member block, or, at
+    /// the top of a file, in the file. Every branch's members are read, in
+    /// source order.
     public var isConditional: Bool
 
     /// The attributes, in order, with those in each branch of an `#if`:
@@ -113,11 +117,12 @@ extension Member {
         }
     }
 
-    /// The members `declaration` declares, one for each name.
+    /// The members `declaration` declares, one for each name. `owner` is
+    /// the block it's in, or nil at the top of a file.
     static func all(
         in declaration: DeclSyntax,
         isConditional: Bool,
-        owner: MemberBlockSyntax,
+        owner: MemberBlockSyntax?,
         path: String,
         lines: SourceLines
     ) -> [Member] {
@@ -170,6 +175,7 @@ extension Member {
         .protocolDecl: .type,
         .typeAliasDecl: .typeAlias,
         .associatedTypeDecl: .associatedType,
+        .macroDecl: .macro,
     ]
 
     /// Each name `declaration` declares.

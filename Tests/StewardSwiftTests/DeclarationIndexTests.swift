@@ -227,9 +227,9 @@ struct DeclarationIndexTests {
         }
     }
 
-    /// For every function, type, member, extension and import: a finding at
-    /// its location is kept when any of its lines changes, and not when
-    /// only the line after it does.
+    /// For every function, type, member, top-level member, extension and
+    /// import: a finding at its location is kept when any of its lines
+    /// changes, and not when only the line after it does.
     private static func checkModelValues(_ files: [Corpus.File]) {
         files.forEach { corpusFile in
             let file: SwiftFile
@@ -242,6 +242,7 @@ struct DeclarationIndexTests {
             let values = file.functions.map { ($0.location, $0.lineRange) }
                 + file.types.map { ($0.location, $0.lineRange) }
                 + file.memberBlocks.flatMap { $0.members.map { ($0.location, $0.lineRange) } }
+                + file.topLevelMembers.map { ($0.location, $0.lineRange) }
                 + file.memberBlocks.map { ($0.location, $0.lineRange) }
                 + file.imports.map { ($0.location, $0.location.line.map { $0...$0 } ?? 1...1) }
             let index = DeclarationIndex(file: file)

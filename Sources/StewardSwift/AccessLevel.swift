@@ -85,8 +85,10 @@ extension AccessLevel {
     /// deinitializer, in `block`: its type's, but at least `internal`, as
     /// Swift gives them (checked with `swiftc -dump-ast`: a case of a
     /// `private` enum is `internal`, a deinit of an `open` class `open`).
-    init(implicitMemberOf block: MemberBlockSyntax) {
-        let owner = block.parent.flatMap { parent in
+    /// At the top of a file, where only broken source has one, `block` is
+    /// nil and the level `internal`.
+    init(implicitMemberOf block: MemberBlockSyntax?) {
+        let owner = block?.parent.flatMap { parent in
             parent.asProtocol((any DeclGroupSyntax).self).map { AccessLevel(of: parent, modifiers: $0.modifiers) }
         }
         self.init(level: Swift.max(.internal, owner?.level ?? .internal), isExplicit: false)

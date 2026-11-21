@@ -76,6 +76,19 @@ extension TokenSyntax {
     }
 }
 
+extension SourceFileSyntax {
+    /// The file's top level, in source order: its item lists and their
+    /// items, through any `#if`, and what each item holds, without going
+    /// into a declaration, a statement or an expression.
+    var topLevel: PreorderWalk {
+        preorder { node in
+            node.is(SourceFileSyntax.self) || node.is(CodeBlockItemListSyntax.self)
+                || node.is(CodeBlockItemSyntax.self) || node.is(IfConfigDeclSyntax.self)
+                || node.is(IfConfigClauseListSyntax.self) || node.is(IfConfigClauseSyntax.self)
+        }
+    }
+}
+
 /// A depth-first walk over a syntax tree that keeps its own stack, so a
 /// tree of any depth is walked in constant call depth.
 struct PreorderWalk: Sequence, IteratorProtocol {
