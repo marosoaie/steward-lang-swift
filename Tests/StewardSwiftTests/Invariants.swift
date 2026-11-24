@@ -70,11 +70,12 @@ enum Invariants {
         file.memberBlocks.forEach { block in
             let functionMembers = block.members.filter { $0.kind == .function }
             #expect(
-                block.members.allSatisfy {
-                    block.lineRange.contains($0.lineRange.lowerBound)
-                        && block.lineRange.contains($0.lineRange.upperBound)
+                block.members.allSatisfy { member in
+                    block.lineRange.contains(member.lineRange.lowerBound)
+                        && block.lineRange.contains(member.lineRange.upperBound)
+                        && sequence(first: Syntax(member.syntax), next: \.parent).contains { $0.id == block.syntax.id }
                 },
-                "a member of \(block.owner) is outside its block's lines \(block.lineRange)",
+                "a member of \(block.owner) is outside its block's lines \(block.lineRange) or its node",
                 sourceLocation: sourceLocation
             )
             #expect(

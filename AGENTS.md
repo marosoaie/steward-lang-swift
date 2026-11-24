@@ -52,13 +52,13 @@ dependency's bound means checking again. The model follows this
 package's version, and a raw node follows swift-syntax's.
 
 A value that holds a node (`SwiftFile`, `FunctionDeclaration`,
-`TypeDeclaration`, `MemberBlock`) is
-`Sendable` only: nodes are `Hashable` by identity, so equality would mean
-"the same parse", and it has no memberwise initializer, since its fields
-would disagree with its node if set by hand. `signature` is the value to
-compare. Values that hold no node (`TypeName`, `AccessLevel`,
-`Parameter`, `Attribute`, `FunctionSignature`, `Member`, `Import`) are
-`Hashable`, with public memberwise initializers.
+`TypeDeclaration`, `MemberBlock`, `Member`) is `Sendable` only: nodes are
+`Hashable` by identity, so equality would mean "the same parse", and it
+has no memberwise initializer, since its fields would disagree with its
+node if set by hand. `signature` is the value to compare. Values that
+hold no node (`TypeName`, `AccessLevel`, `Parameter`, `Attribute`,
+`FunctionSignature`, `Import`) are `Hashable`, with public memberwise
+initializers.
 
 ## Dependencies
 

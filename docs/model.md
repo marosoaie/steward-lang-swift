@@ -148,6 +148,7 @@ One name a member block declares: `var a, b` is two.
 | `property` | A property's `Member.Property`, nil for every other kind. |
 | `location` | The line of its name. |
 | `lineRange` | The whole declaration's lines. |
+| `syntax` | Its declaration's node, shared by every name it declares, so `var a, b`'s two members hold one `VariableDeclSyntax`. |
 
 A `Member.Property` holds a property's details as written:
 - `isConstant`, whether it's a `let`.
