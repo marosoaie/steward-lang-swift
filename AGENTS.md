@@ -37,9 +37,10 @@ the main API. `SwiftFile(source:path:)` parses a file and reads its
 (`MemberBlock`, a type's or an extension's `Member`s in source order, for
 ordering rules) and `functions` (`FunctionDeclaration`, with its
 `FunctionSignature`, `Parameter`s and `Attribute`s), all at any depth and
-in every branch of an `#if`; names of types are `TypeName`s and access
-levels `AccessLevel`s. Every model value has a `location` that goes
-straight into a `Finding`'s `at:`, and `file.location(of:)` gives a raw
+in every branch of an `#if`, and `topLevelMembers`, the `Member`s at the
+top of the file; names of types are `TypeName`s and access levels
+`AccessLevel`s. Every model value has a `location` that goes straight
+into a `Finding`'s `at:`, and `file.location(of:)` gives a raw
 node one, from `SourceLines`: swift-syntax's `SourceLocationConverter`
 follows `#sourceLocation`, whose line a pull request chooses, and can
 overflow. `StewardSwift` re-exports `Steward`

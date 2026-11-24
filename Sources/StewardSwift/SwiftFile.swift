@@ -37,6 +37,16 @@ public struct SwiftFile: Sendable {
     /// depth: what an ordering rule reads.
     public var memberBlocks: [MemberBlock]
 
+    /// The declarations at the top of the file, one for each name, in
+    /// source order and in each branch of an `#if`, as a block's members
+    /// are: functions, types, properties, type aliases, macros and macro
+    /// expansions. Extensions, imports, and operator and precedence group
+    /// declarations aren't members; `memberBlocks` and `imports` have the
+    /// first two. Nor is a freestanding macro with no attribute or
+    /// modifier, such as `#Preview { … }`: at the top of a file it's an
+    /// expression, a `MacroExpansionExprSyntax` in `syntax`.
+    public var topLevelMembers: [Member]
+
     /// Every `func` declaration, in source order, at any depth: in types,
     /// extensions and protocols, inside other functions and closures, and
     /// in each branch of an `#if`.
@@ -129,6 +139,13 @@ public struct SwiftFile: Sendable {
         types = nodes.compactMap { $0.as(DeclSyntax.self) }.compactMap { TypeDeclaration($0, path: path, lines: lines) }
         memberBlocks = nodes.compactMap { $0.as(MemberBlockSyntax.self) }
             .compactMap { MemberBlock($0, path: path, lines: lines) }
+        topLevelMembers = tree.topLevel.compactMap { $0.as(CodeBlockItemSyntax.self) }.flatMap { item in
+            item.item.as(DeclSyntax.self).map { declaration in
+                // The item's list is the file's, or a branch's of an `#if`.
+                let isConditional = item.parent?.parent?.is(IfConfigClauseSyntax.self) == true
+                return Member.all(in: declaration, isConditional: isConditional, owner: nil, path: path, lines: lines)
+            } ?? []
+        }
         functions = nodes.compactMap { $0.as(FunctionDeclSyntax.self) }
             .map { FunctionDeclaration($0, path: path, lines: lines) }
         syntax = tree

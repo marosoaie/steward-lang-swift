@@ -241,12 +241,10 @@ private struct GraphSymbol: Decodable {
         location.map { "\($0.uri):\($0.position.line):\($0.position.character ?? -1)" }
     }
 
-    /// The symbol with its doc comment, if it's in a file under `root`
-    /// and the model reads it: top-level variables aren't members, so they
-    /// are left out, as are synthesized copies.
+    /// The symbol with its doc comment, if it's in a file under `root`:
+    /// synthesized copies are left out.
     func documented(under root: String) -> SymbolGraphOracle.Documented? {
-        guard kind.identifier != "swift.var",
-              !identifier.precise.contains("::SYNTHESIZED::"),
+        guard !identifier.precise.contains("::SYNTHESIZED::"),
               let location,
               let url = URL(string: location.uri)
         else { return nil }

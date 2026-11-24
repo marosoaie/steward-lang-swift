@@ -10,7 +10,8 @@ enum Invariants {
         var location: Location
         var lineRange: ClosedRange<Int>
 
-        /// The types, member blocks and members of `file`.
+        /// The types, member blocks, members and top-level members of
+        /// `file`.
         static func all(in file: SwiftFile) -> [Span] {
             file.types.map { Span(what: "type \($0.name)", location: $0.location, lineRange: $0.lineRange) }
                 + file.memberBlocks.map {
@@ -20,6 +21,9 @@ enum Invariants {
                     block.members.map {
                         Span(what: "member \($0.name)", location: $0.location, lineRange: $0.lineRange)
                     }
+                }
+                + file.topLevelMembers.map {
+                    Span(what: "top-level \($0.name)", location: $0.location, lineRange: $0.lineRange)
                 }
         }
     }
@@ -100,6 +104,17 @@ enum Invariants {
             file.imports.allSatisfy { valid.contains($0.location.line ?? 0) && $0.location.path == file.path },
             sourceLocation: sourceLocation
         )
+        #expect(file.topLevelMembers.allSatisfy(isAtTheTop), "a top-level member isn't", sourceLocation: sourceLocation)
+    }
+
+    /// Whether only the file, its item lists and items, and `#if`s are
+    /// around `member`'s node.
+    static func isAtTheTop(_ member: Member) -> Bool {
+        sequence(first: Syntax(member.syntax), next: \.parent).dropFirst().allSatisfy { node in
+            node.is(SourceFileSyntax.self) || node.is(CodeBlockItemListSyntax.self)
+                || node.is(CodeBlockItemSyntax.self) || node.is(IfConfigDeclSyntax.self)
+                || node.is(IfConfigClauseListSyntax.self) || node.is(IfConfigClauseSyntax.self)
+        }
     }
 
     /// The `func` keywords that the source writes and that start a function

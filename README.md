@@ -146,16 +146,17 @@ jobs:
 
 `Rule.swiftSource` hands its check a `SwiftFile`: the file's `imports`,
 `types`, `memberBlocks` and `functions`, each at any depth (nested in
-types, local to functions) and in every branch of an `#if`. Each value
-has a `location` for a finding's `at:`. Functions, types, member blocks
-and members also have their `lineRange`, and the file, functions, types,
-member blocks and members their swift-syntax node, `syntax`, for what the
-model doesn't hold: `StewardSwift` re-exports SwiftSyntax, so its types
-need no import, and `file.location(of:)` gives such a node its location,
-as git counts lines. A raw node follows swift-syntax's version, not this
-package's: a new swift-syntax major can change it. A type's name in a
-signature or an inheritance clause is a `TypeName`, which matches a
-string by its spelling, and an access level an `AccessLevel`.
+types, local to functions), and its `topLevelMembers`, all in every
+branch of an `#if`. Each value has a `location` for a finding's `at:`.
+Functions, types, member blocks and members also have their `lineRange`,
+and the file, functions, types, member blocks and members their
+swift-syntax node, `syntax`, for what the model doesn't hold:
+`StewardSwift` re-exports SwiftSyntax, so its types need no import, and
+`file.location(of:)` gives such a node its location, as git counts
+lines. A raw node follows swift-syntax's version, not this package's: a
+new swift-syntax major can change it. A type's name in a signature or an
+inheritance clause is a `TypeName`, which matches a string by its
+spelling, and an access level an `AccessLevel`.
 
 Each block below is the body of a test in this repository, so what it
 expects holds.
@@ -257,6 +258,28 @@ let file = try SwiftFile(source: """
 let members = file.memberBlocks[0].members
 #expect(members.map(\.name) == ["dump", "log", "refresh"])
 #expect(members.map(\.isConditional) == [true, true, false])
+```
+
+### Top-level declarations
+
+A file's top level is read as a block's members are, so a global `let`
+or `var` and a `typealias`, which no other list holds, are there too:
+
+<!-- README: read-top-level-members -->
+```swift
+let file = try SwiftFile(source: """
+    import Foundation
+
+    /// The feed's version.
+    public let version = "2.1"
+    public typealias Handler = (Feed) -> Void
+    func makeFeed() -> Feed { Feed() }
+    extension Feed {}
+    """, path: "Sources/Feed/Globals.swift")
+let members = file.topLevelMembers
+#expect(members.map(\.kind) == [.property, .typeAlias, .function])
+#expect(members.map(\.name) == ["version", "Handler", "makeFeed"])
+#expect(members.filter { $0.documentation == nil }.map(\.name) == ["Handler", "makeFeed"])
 ```
 
 ### Imports
