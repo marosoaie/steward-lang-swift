@@ -125,7 +125,10 @@ struct NestingScanTests {
     // measure around the scan doesn't.
     @Test(
         "the scan takes linear time on input made of what it looks at",
-        .timeLimit(.minutes(3)),
+        // Five minutes, as the slow suites beside it have: on a loaded Linux
+        // runner the test has reported 149 s, nearly all of it waiting for
+        // threads.
+        .timeLimit(.minutes(5)),
         arguments: ["#", "\"", "/*", "\\(", "<", "[]", "\"\\(", "#\"", "\n#if A"]
     )
     func linear(unit: String) {

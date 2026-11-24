@@ -133,21 +133,23 @@ public struct SwiftFile: Sendable {
     private init(tree: SourceFileSyntax, source: String, path: String) {
         let lines = SourceLines(source: source)
         let nodes = Array(tree.preorder())
+        let caps = AccessCaps(tree: tree, nodes: nodes)
         sourceLines = lines
         self.path = path
         imports = nodes.compactMap { $0.as(ImportDeclSyntax.self) }.map { Import($0, path: path, lines: lines) }
-        types = nodes.compactMap { $0.as(DeclSyntax.self) }.compactMap { TypeDeclaration($0, path: path, lines: lines) }
+        types = nodes.compactMap { $0.as(DeclSyntax.self) }
+            .compactMap { TypeDeclaration($0, path: path, lines: lines, caps: caps) }
         memberBlocks = nodes.compactMap { $0.as(MemberBlockSyntax.self) }
-            .compactMap { MemberBlock($0, path: path, lines: lines) }
+            .compactMap { MemberBlock($0, path: path, lines: lines, caps: caps) }
         topLevelMembers = tree.topLevel.compactMap { $0.as(CodeBlockItemSyntax.self) }.flatMap { item in
             item.item.as(DeclSyntax.self).map { declaration in
                 // The item's list is the file's, or a branch's of an `#if`.
                 let isConditional = item.parent?.parent?.is(IfConfigClauseSyntax.self) == true
-                return Member.all(in: declaration, isConditional: isConditional, owner: nil, path: path, lines: lines)
+                return Member.all(in: (declaration, isConditional), owner: nil, path: path, lines: lines, caps: caps)
             } ?? []
         }
         functions = nodes.compactMap { $0.as(FunctionDeclSyntax.self) }
-            .map { FunctionDeclaration($0, path: path, lines: lines) }
+            .map { FunctionDeclaration($0, path: path, lines: lines, caps: caps) }
         syntax = tree
     }
 

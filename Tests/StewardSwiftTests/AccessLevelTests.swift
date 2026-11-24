@@ -42,6 +42,7 @@ struct AccessLevelTests {
             ("public struct S { public protocol P { func f() } }", .public),
             ("func g() { struct L { func f() {} } }", .internal),
             ("#if DEBUG\npublic extension S { func f() {} }\n#endif", .public),
+            ("switch x { case 1: func f() {}\ndefault: break }", .private),
         ]
     )
     func implicit(source: String, level: AccessLevel.Level) throws {

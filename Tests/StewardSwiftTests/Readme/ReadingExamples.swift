@@ -50,6 +50,24 @@ struct ReadingExamples {
         // README: end
     }
 
+    @Test("a declaration's effective access is capped by the types around it, but not by an extension")
+    func effectiveAccess() throws {
+        // README: read-effective-access
+        let file = try SwiftFile(source: """
+            struct Cache {
+                public func clear() {}
+            }
+
+            extension Cache {
+                public func warm() {}
+            }
+            """, path: "Sources/Feed/Cache.swift")
+        let (clear, warm) = (file.functions[0], file.functions[1])
+        #expect(clear.access.level == .public && clear.effectiveAccess == .internal)
+        #expect(warm.effectiveAccess == .public)
+        // README: end
+    }
+
     @Test("a member block's members are read in order, and an extension with its conformances")
     func members() throws {
         // README: read-members
