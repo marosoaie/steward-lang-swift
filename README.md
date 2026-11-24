@@ -54,9 +54,9 @@ Steward's `GitDiffKit` and `PullRequestHosting`) and `SwiftSyntax` with
 it. Every example in this README is compiled and run by this package's
 tests, so they can't drift from the API.
 
-steward-lang-swift is at 0.3. Until 1.0, a minor release may change the
+steward-lang-swift is at 0.4. Until 1.0, a minor release may change the
 API, so a Dangerfile depends on one minor release,
-`.upToNextMinor(from: "0.3.0")`, as [Setting up](#setting-up) shows.
+`.upToNextMinor(from: "0.4.0")`, as [Setting up](#setting-up) shows.
 
 ## Setting up
 
@@ -74,7 +74,7 @@ let package = Package(
     platforms: [.macOS(.v26)],
     dependencies: [
         .package(url: "https://github.com/marosoaie/swift-steward.git", .upToNextMinor(from: "0.4.0")),
-        .package(url: "https://github.com/marosoaie/steward-lang-swift.git", .upToNextMinor(from: "0.3.0")),
+        .package(url: "https://github.com/marosoaie/steward-lang-swift.git", .upToNextMinor(from: "0.4.0")),
     ],
     targets: [
         .executableTarget(
