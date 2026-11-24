@@ -37,9 +37,10 @@ the main API. `SwiftFile(source:path:)` parses a file and reads its
 (`MemberBlock`, a type's or an extension's `Member`s in source order, for
 ordering rules) and `functions` (`FunctionDeclaration`, with its
 `FunctionSignature`, `Parameter`s and `Attribute`s), all at any depth and
-in every branch of an `#if`; names of types are `TypeName`s and access
-levels `AccessLevel`s. Every model value has a `location` that goes
-straight into a `Finding`'s `at:`, and `file.location(of:)` gives a raw
+in every branch of an `#if`, and `topLevelMembers`, the `Member`s at the
+top of the file; names of types are `TypeName`s and access levels
+`AccessLevel`s. Every model value has a `location` that goes straight
+into a `Finding`'s `at:`, and `file.location(of:)` gives a raw
 node one, from `SourceLines`: swift-syntax's `SourceLocationConverter`
 follows `#sourceLocation`, whose line a pull request chooses, and can
 overflow. `StewardSwift` re-exports `Steward`
@@ -52,13 +53,13 @@ dependency's bound means checking again. The model follows this
 package's version, and a raw node follows swift-syntax's.
 
 A value that holds a node (`SwiftFile`, `FunctionDeclaration`,
-`TypeDeclaration`, `MemberBlock`) is
-`Sendable` only: nodes are `Hashable` by identity, so equality would mean
-"the same parse", and it has no memberwise initializer, since its fields
-would disagree with its node if set by hand. `signature` is the value to
-compare. Values that hold no node (`TypeName`, `AccessLevel`,
-`Parameter`, `Attribute`, `FunctionSignature`, `Member`, `Import`) are
-`Hashable`, with public memberwise initializers.
+`TypeDeclaration`, `MemberBlock`, `Member`) is `Sendable` only: nodes are
+`Hashable` by identity, so equality would mean "the same parse", and it
+has no memberwise initializer, since its fields would disagree with its
+node if set by hand. `signature` is the value to compare. Values that
+hold no node (`TypeName`, `AccessLevel`, `Parameter`, `Attribute`,
+`FunctionSignature`, `Import`) are `Hashable`, with public memberwise
+initializers.
 
 ## Dependencies
 
@@ -166,11 +167,13 @@ only, functional over imperative, the Swift API Design Guidelines with a
 doc comment on every public symbol, strict concurrency and memory safety
 with zero warnings, swift-testing with sentence-style names, and oracles
 over hand-computed expectations where one exists. Tests pass under both
-`swift test` and `xcodebuild test`. In a name, "lines" means lines of
-text: one span of line numbers is a `lineRange`, a set, list or per-file
-map of them is `…LineNumbers` (`changedLineNumbers`,
-`lineNumbersAfterDeletions`), and one number stays `line` or
-`lineNumber`.
+`swift test` and `xcodebuild test`. A `.timeLimit`'s clock starts before
+the body has a thread: it counts the wait to start and, on a test that
+suspends, each wait to resume, so a limit has to clear the whole run,
+whatever the body does. In a name, "lines" means lines of text: one span
+of line numbers is a `lineRange`, a set, list or per-file map of them is
+`…LineNumbers` (`changedLineNumbers`, `lineNumbersAfterDeletions`), and
+one number stays `line` or `lineNumber`.
 
 The source a rule reads is hostile input: a pull request's author writes
 it, and what a rule reports can end up in a public comment. Nothing here

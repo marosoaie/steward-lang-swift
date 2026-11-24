@@ -120,8 +120,9 @@ struct NestingScanTests {
     // A quarter of a megabyte: a scan quadratic in it would take hours. The
     // scan takes well under a second a megabyte in a debug build, on macOS
     // and in the swift:6.2 container alike; the limit is generous because
-    // a loaded runner can leave the test waiting for a thread, which the
-    // limit counts and the measure around the scan doesn't.
+    // its clock starts before the body has a thread, and a loaded runner
+    // can leave the body waiting for one, which the limit counts and the
+    // measure around the scan doesn't.
     @Test(
         "the scan takes linear time on input made of what it looks at",
         // Five minutes, as the slow suites beside it have: on a loaded Linux
